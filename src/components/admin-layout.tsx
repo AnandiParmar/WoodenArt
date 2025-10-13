@@ -4,6 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '@/redux/store';
+import { useAuth } from '@/contexts/AuthContext';
+import { clearUser } from '@/redux/features/user/userSlice';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -70,7 +74,15 @@ const menuItems = [
 export const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const user = useSelector((state: RootState) => state.user);
+  const dispatch = useDispatch();
+  const { logout } = useAuth();
 
+  const handleLogout = async () => {
+    await logout();
+    dispatch(clearUser());
+    window.location.href = '/login';
+  };
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -81,7 +93,7 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
         <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-gray-800 to-gray-900">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-r from-accent-500 to-accent-600 rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl">A</span>
+              <span className="text-white font-bold text-xl">{(user.firstName?.[0] || 'A').toUpperCase()}</span>
             </div>
             <div>
               <h1 className="text-white text-lg font-bold">Admin Panel</h1>
@@ -149,13 +161,13 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gray-50 border-t border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-r from-accent-500 to-accent-600 rounded-full flex items-center justify-center shadow-md">
-              <span className="text-sm font-bold text-white">U</span>
+              <span className="text-sm font-bold text-black">{(user.firstName?.[0] || 'U').toUpperCase()}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">Admin User</p>
-              <p className="text-xs text-gray-500 truncate">admin@woodenart.com</p>
+              <p className="text-sm font-semibold text-gray-900 truncate">{[user.firstName, user.lastName].filter(Boolean).join(' ') || 'User'}</p>
+              <p className="text-xs text-gray-500 truncate">{user.email || 'admin@woodenart.com'}</p>
             </div>
-            <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={handleLogout} className="p-1 text-gray-400 hover:text-gray-600 transition-colors" title="Logout">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
@@ -197,9 +209,9 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
               {/* User Menu */}
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-accent-600 to-accent-700 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-semibold">A</span>
+                  <span className="text-black text-sm font-semibold">{(user.firstName?.[0] || 'A').toUpperCase()} </span>
                 </div>
-                <span className="text-gray-700 font-medium">Admin</span>
+                <span className="text-gray-700 font-medium">{[user.firstName, user.lastName].filter(Boolean).join(' ') || 'User'}</span>
               </div>
             </div>
           </div>

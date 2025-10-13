@@ -54,6 +54,8 @@ export interface ProductTableData extends Record<string, unknown> {
   name: string;
   description?: string;
   price: number;
+  discount?: number;
+  discountType?: 'PERCENT' | 'FIXED';
   category: string;
   stock: number;
   status: 'Active' | 'Inactive';

@@ -7,6 +7,7 @@ export interface ProductInput {
   description?: string;
   price: Decimal;
   discount?: Decimal;
+  discountType?: 'PERCENT' | 'FIXED';
   sku?: string;
   stock?: number;
   featureImage?: string | null;
@@ -24,6 +25,7 @@ export interface ProductUpdateInput {
   description?: string;
   price?: Decimal;
   discount?: Decimal;
+  discountType?: 'PERCENT' | 'FIXED';
   sku?: string;
   stock?: number;
   featureImage?: string | null;

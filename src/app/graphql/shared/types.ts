@@ -5,12 +5,18 @@ export const sharedTypes = gql`
   scalar Decimal
   scalar JSON
 
+  enum DiscountType {
+    PERCENT
+    FIXED
+  }
+
   type Product {
     id: ID!
     name: String!
     description: String
     price: Decimal!
     discount: Decimal
+    discountType: DiscountType!
     sku: String
     stock: Int!
     featureImage: String

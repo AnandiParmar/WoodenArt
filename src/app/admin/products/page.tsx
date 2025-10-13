@@ -55,11 +55,22 @@ export default function ProductManagement() {
     let featureImageUrl: string | null = null;
     const galleryUrls: string[] = [];
 
+    const parseDiscount = (raw: unknown, selectedType?: 'PERCENT' | 'FIXED') => {
+      if (raw == null || raw === '') return { discount: undefined as number | undefined, discountType: selectedType };
+      const numeric = Number(raw);
+      if (Number.isNaN(numeric)) return { discount: undefined as number | undefined, discountType: selectedType };
+      return { discount: numeric, discountType: selectedType };
+    };
+
+    const parsed = parseDiscount(values.discount, values.discountType as 'PERCENT' | 'FIXED' | undefined);
+
     // Create product first to get an ID
     const createdProduct = await dispatch(createProductAction({
       name: values.name,
       description: values.description ?? undefined,
       price: Number(values.price),
+      discount: parsed.discount,
+      discountType: parsed.discountType ?? 'PERCENT',
       stock: Number(values.stock ?? 0),
       isActive: values.status === 'Active',
       categoryId: String(categoryId),
@@ -118,10 +129,15 @@ export default function ProductManagement() {
     await dispatch(updateProductAction({
       id: productId,
       input: {
+        discount: parsed.discount,
+        discountType: parsed.discountType ?? undefined,
         featureImage: featureImageUrl,
         images: galleryUrls.length > 0 ? galleryUrls : null,
       },
     }));
+
+    // Ensure latest data is reflected immediately
+    await dispatch(listProducts());
 
     // Refresh categories to update product counts
     dispatch(listCategories());
@@ -132,6 +148,14 @@ export default function ProductManagement() {
   };
 
   const handleEditProduct = async (values: ProductFormValues) => {
+    const parseDiscount = (raw: unknown, selectedType?: 'PERCENT' | 'FIXED') => {
+      if (raw == null || raw === '') return { discount: undefined as number | undefined, discountType: selectedType };
+      const numeric = Number(raw);
+      if (Number.isNaN(numeric)) return { discount: undefined as number | undefined, discountType: selectedType };
+      return { discount: numeric, discountType: selectedType };
+    };
+
+    const parsed = parseDiscount(values.discount, values.discountType as 'PERCENT' | 'FIXED' | undefined);
     if (!editingProduct) return;
     
     let featureImageUrl: string | null | undefined = undefined;
@@ -201,6 +225,8 @@ export default function ProductManagement() {
         name: values.name,
         description: values.description ?? undefined,
         price: Number(values.price),
+        discount: parsed.discount,
+        discountType: parsed.discountType ?? undefined,
         stock: Number(values.stock ?? 0),
         isActive: values.status === 'Active',
         categoryId: values.categoryId,
@@ -208,6 +234,9 @@ export default function ProductManagement() {
         images: galleryUrls,
       },
     }));
+
+    // Force-refresh product list so table reflects discountType/price changes
+    await dispatch(listProducts());
 
     // Refresh categories to update product counts
     dispatch(listCategories());
@@ -400,6 +429,8 @@ export default function ProductManagement() {
               name: editingProduct.name,
               description: editingProduct.description,
               price: editingProduct.price,
+              discount: editingProduct.discount as number | undefined,
+              discountType: (editingProduct.discountType as 'PERCENT' | 'FIXED') ?? 'FIXED',
               categoryId: categoryOptions.find(cat => cat.label === editingProduct.category)?.value || '',
               stock: editingProduct.stock,
               status: editingProduct.status,
@@ -462,7 +493,31 @@ export default function ProductManagement() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Price</label>
-                  <p className="text-2xl font-bold text-gray-900">${viewingProduct.price}</p>
+                  <p className="text-2xl font-bold text-gray-900">₹{Number(viewingProduct.price || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Discount</label>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {viewingProduct.discount != null
+                      ? (viewingProduct.discountType === 'PERCENT'
+                          ? `${Number(viewingProduct.discount).toFixed(2)}%`
+                          : `₹${Number(viewingProduct.discount).toFixed(2)}`)
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Final Price</label>
+                  <p className="text-xl font-bold text-gray-900">
+                    {(() => {
+                      const price = Number(viewingProduct.price || 0);
+                      const disc = Number(viewingProduct.discount || 0);
+                      const final = viewingProduct.discountType === 'PERCENT'
+                        ? price - (price * disc) / 100
+                        : price - disc;
+                      const safe = isFinite(final) ? Math.max(final, 0) : price;
+                      return `₹${safe.toFixed(2)}`;
+                    })()}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Stock</label>

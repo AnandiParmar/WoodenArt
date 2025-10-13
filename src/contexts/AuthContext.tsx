@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserPayload } from '@/lib/auth';
+import { useDispatch } from 'react-redux';
+import { setUser as setUserAction, clearUser as clearUserAction } from '@/redux/features/user/userSlice';
 
 interface AuthContextType {
   user: UserPayload | null;
@@ -17,6 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
 
   const isAdmin = user?.role === 'ADMIN';
 
@@ -51,6 +54,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json();
         if (data.data?.me) {
           setUser(data.data.me);
+          // Mirror into Redux
+          dispatch(setUserAction({
+            id: Number(data.data.me.id) || null,
+            email: data.data.me.email || null,
+            firstName: data.data.me.firstName || null,
+            lastName: data.data.me.lastName || null,
+            role: (data.data.me.role as 'USER' | 'ADMIN') ?? null,
+          }));
           return;
         }
       }
@@ -129,6 +140,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data.data?.login) {
         setUser(data.data.login.user);
+        // Mirror into Redux
+        const u = data.data.login.user;
+        dispatch(setUserAction({
+          id: Number(u.id) || null,
+          email: u.email || null,
+          firstName: u.firstName || 'User',
+          lastName: u.lastName || null,
+          role: (u.role as 'USER' | 'ADMIN') ?? null,
+        }));
         // Persist tokens
         const token: string = data.data.login.token;
         const refreshToken: string = data.data.login.refreshToken;
@@ -198,6 +218,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data.data?.register) {
         setUser(data.data.register.user);
+        const u = data.data.register.user;
+        dispatch(setUserAction({
+          id: Number(u.id) || null,
+          email: u.email || null,
+          firstName: u.firstName || null,
+          lastName: u.lastName || null,
+          role: (u.role as 'USER' | 'ADMIN') ?? null,
+        }));
         // Persist tokens
         const token: string = data.data.register.token;
         const refreshToken: string = data.data.register.refreshToken;
@@ -243,6 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       setUser(null);
+      dispatch(clearUserAction());
     }
   };
 

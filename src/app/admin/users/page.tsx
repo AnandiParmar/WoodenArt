@@ -140,15 +140,6 @@ export default function UsersPage() {
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">Users</h2>
-            <button
-              onClick={handleAdd}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              Add New User
-            </button>
-          </div>
 
           <DynamicTable
             data={users as unknown as Record<string, unknown>[]}

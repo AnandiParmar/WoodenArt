@@ -6,6 +6,7 @@ export const productSchema = gql`
     description: String
     price: Decimal!
     discount: Decimal
+    discountType: DiscountType = PERCENT
     sku: String
     stock: Int = 0
     featureImage: String
@@ -23,6 +24,7 @@ export const productSchema = gql`
     description: String
     price: Decimal
     discount: Decimal
+    discountType: DiscountType
     sku: String
     stock: Int
     featureImage: String

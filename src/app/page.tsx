@@ -4,14 +4,19 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import RecentProducts from '@/components/recent-products';
+import { useAppDispatch, useAppSelector } from '@/redux/store';
+import { listProducts } from '@/redux/features/product/productActions';
 
 export default function Home() {
   const [isVisible, setIsVisible] = useState(false);
   const [hasMovedToNavbar, setHasMovedToNavbar] = useState(false);
   const { user, isAdmin } = useAuth();
+  const recent = useAppSelector((s: { product: { items: Array<{ id: number; name: string; price: number; featureImage?: string; createdAt?: string }> } }) => s.product.items);
+  const dispatch = useAppDispatch();
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     
     const handleScroll = () => {
       const scrolled = window.scrollY > 150; // Increased threshold for more stability
@@ -41,6 +46,11 @@ export default function Home() {
       clearTimeout(timeoutId);
     };
   }, [hasMovedToNavbar]);
+
+  // Fetch recent products for homepage
+  useEffect(() => {
+    dispatch(listProducts());
+  }, [dispatch]);
 
   return (
     <div className="min-h-screen relative home-page bg-gradient-to-br from-slate-50 via-white to-gray-100">
@@ -185,6 +195,16 @@ export default function Home() {
                 </div>
               ))}
             </div>
+
+            {/* Recent products from store */}
+            <RecentProducts products={recent.map((p) => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              image: (p as unknown as { featureImage?: string; image?: string }).featureImage ||
+                     (p as unknown as { featureImage?: string; image?: string }).image,
+              createdAt: p.createdAt,
+            }))} />
 
             {/* Call to action section */}
             <div className="text-center py-16">

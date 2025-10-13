@@ -10,6 +10,8 @@ interface GraphQLProduct {
   name: string;
   description?: string | null;
   price: string | number;
+  discount?: string | number | null;
+  discountType?: 'PERCENT' | 'FIXED';
   stock: number;
   isActive: boolean;
   featureImage?: string | null;
@@ -41,7 +43,7 @@ export const listProducts = createAsyncThunk('product/list', async () => {
   const query = `
     query Products($first: Int) {
       products(first: $first) {
-        edges { node { id name description price stock isActive featureImage images createdAt category { id name } } }
+        edges { node { id name description price discount discountType stock isActive featureImage images createdAt category { id name } } }
       }
     }
   `;
@@ -51,6 +53,8 @@ export const listProducts = createAsyncThunk('product/list', async () => {
     name: node.name,
     description: node.description ?? '',
     price: typeof node.price === 'string' ? parseFloat(node.price) : node.price,
+    discount: node.discount != null ? (typeof node.discount === 'string' ? parseFloat(node.discount) : node.discount) : undefined,
+    discountType: node.discountType,
     category: node.category?.name ?? 'Uncategorized',
     stock: node.stock,
     status: node.isActive ? 'Active' : 'Inactive',
@@ -64,10 +68,10 @@ export const listProducts = createAsyncThunk('product/list', async () => {
 
 export const createProduct = createAsyncThunk(
   'product/create',
-  async (input: { name: string; description?: string; price: number; stock?: number; isActive: boolean; categoryId: string; featureImage?: string | null; images?: string[] | null }) => {
+  async (input: { name: string; description?: string; price: number; discount?: number; discountType?: 'PERCENT' | 'FIXED'; stock?: number; isActive: boolean; categoryId: string; featureImage?: string | null; images?: string[] | null }) => {
     const mutation = `
       mutation CreateProduct($input: ProductInput!) {
-        createProduct(input: $input) { id name description price stock isActive featureImage images createdAt category { id name } }
+        createProduct(input: $input) { id name description price discount discountType stock isActive featureImage images createdAt category { id name } }
       }
     `;
     const created = await graphqlFetch<GraphQLCreateProductResponse, { input: Record<string, unknown> }>({
@@ -80,6 +84,8 @@ export const createProduct = createAsyncThunk(
       name: p.name,
       description: p.description ?? '',
       price: typeof p.price === 'string' ? parseFloat(p.price) : p.price,
+      discount: p.discount != null ? (typeof p.discount === 'string' ? parseFloat(p.discount) : p.discount) : undefined,
+      discountType: p.discountType,
       category: p.category?.name ?? 'Uncategorized',
       stock: p.stock,
       status: p.isActive ? 'Active' : 'Inactive',
@@ -109,6 +115,8 @@ export const updateProduct = createAsyncThunk(
       name?: string;
       description?: string;
       price?: number;
+      discount?: number;
+      discountType?: 'PERCENT' | 'FIXED';
       stock?: number;
       isActive?: boolean;
       categoryId?: string;
@@ -123,6 +131,8 @@ export const updateProduct = createAsyncThunk(
           name
           description
           price
+          discount
+          discountType
           stock
           isActive
           featureImage
@@ -142,6 +152,8 @@ export const updateProduct = createAsyncThunk(
       name: p.name,
       description: p.description ?? '',
       price: typeof p.price === 'string' ? parseFloat(p.price) : p.price,
+      discount: p.discount != null ? (typeof p.discount === 'string' ? parseFloat(p.discount) : p.discount) : undefined,
+      discountType: p.discountType,
       category: p.category?.name ?? 'Uncategorized',
       stock: p.stock,
       status: p.isActive ? 'Active' : 'Inactive',

@@ -124,7 +124,7 @@ export const userResolvers = {
             createdAt: true,
             updatedAt: true,
           },
-          orderBy: { [sort.field]: sort.direction },
+          orderBy: { [sort.field]: (sort.direction?.toLowerCase?.() as 'asc' | 'desc') || 'desc' },
           skip,
           take: first,
         }),

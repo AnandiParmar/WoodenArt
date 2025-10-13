@@ -8,6 +8,8 @@ export interface ProductFormValues extends Record<string, unknown> {
   name: string;
   description?: string;
   price: number;
+  discount?: number;
+  discountType?: 'PERCENT' | 'FIXED';
   categoryId: string; // GraphQL expects ID
   stock: number;
   status: 'Active' | 'Inactive';
@@ -24,6 +26,26 @@ export function buildProductFormFields(options: { categories: { value: string; l
     { name: 'name', label: 'Product Name', type: 'text', required: true, placeholder: 'Enter product name' },
     { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Describe the product', colSpan: 2 },
     { name: 'price', label: 'Price', type: 'number', required: true, min: 0, step: 0.01 },
+    {
+      name: 'discount',
+      label: 'Discount',
+      type: 'number',
+      min: 0,
+      step: 0.01,
+      placeholder: 'Enter discount value',
+      description: 'Enter a number only. Interpreted by Discount Type (Percent or ₹).'
+    },
+    {
+      name: 'discountType',
+      label: 'Discount Type',
+      type: 'radio',
+      options: [
+        { value: 'PERCENT', label: 'Percent %' },
+        { value: 'FIXED', label: 'Fixed Amount' },
+      ],
+      defaultValue: 'PERCENT',
+      description: 'Select how to interpret the numeric discount value.',
+    },
     {
       name: 'categoryId',
       label: 'Category',

@@ -28,12 +28,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider>
-          <ReduxProvider>
+        <ReduxProvider>
+          <AuthProvider>
             <ConditionalNavbar />
             {children}
-          </ReduxProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </ReduxProvider>
       </body>
     </html>
   );

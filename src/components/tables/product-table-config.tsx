@@ -42,9 +42,28 @@ export const productColumns: TableColumn<ProductTableData>[] = [
   }),
   createColumn<ProductTableData>('category', 'Category'),
   createColumn<ProductTableData>('price', 'Price', {
-    render: (value: unknown) => (
-      <span className="font-semibold text-gray-900">${value as number}</span>
-    ),
+    render: (value: unknown) => {
+      const v = Number(value as number);
+      return <span className="font-semibold text-gray-900">₹{v.toFixed(2)}</span>;
+    },
+  }),
+  createColumn<ProductTableData>('discount', 'Discount', {
+    render: (_: unknown, item: ProductTableData) => {
+      if (item.discount == null) return <span className="text-gray-400">—</span>;
+      if (item.discountType === 'PERCENT') {
+        return <span className="text-gray-700">{item.discount}%</span>;
+      }
+      return <span className="text-gray-700">₹{Number(item.discount).toFixed(2)}</span>;
+    },
+  }),
+  createColumn<ProductTableData>('finalPrice', 'Final Price', {
+    render: (_: unknown, item: ProductTableData) => {
+      const price = Number(item.price || 0);
+      const discount = Number(item.discount || 0);
+      const final = item.discountType === 'PERCENT' ? price - (price * discount) / 100 : price - discount;
+      const safe = isFinite(final) ? Math.max(final, 0) : price;
+      return <span className="font-semibold text-gray-900">₹{safe.toFixed(2)}</span>;
+    },
   }),
   createColumn<ProductTableData>('stock', 'Stock', {
     render: (value: unknown) => {

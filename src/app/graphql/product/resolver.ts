@@ -197,6 +197,7 @@ export const productResolvers = {
       if (input.description !== undefined) data.description = input.description;
       if (input.price !== undefined) data.price = input.price;
       if (input.discount !== undefined) data.discount = input.discount;
+      if (input.discountType !== undefined) (data as Record<string, unknown>)['discountType'] = input.discountType;
       if (input.sku !== undefined) data.sku = input.sku;
       if (input.stock !== undefined) data.stock = input.stock;
       {
