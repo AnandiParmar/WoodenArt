@@ -1,6 +1,6 @@
-import { TableConfig } from '../table-types';
+// Simplified config object used by Users page
 
-export const userTableConfig: TableConfig = {
+export const userTableConfig = {
   title: 'User Management',
   description: 'Manage user accounts and permissions',
   columns: [

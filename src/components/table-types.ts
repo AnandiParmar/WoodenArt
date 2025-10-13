@@ -56,6 +56,7 @@ export interface ProductTableData extends Record<string, unknown> {
   price: number;
   discount?: number;
   discountType?: 'PERCENT' | 'FIXED';
+  finalPrice?: number;
   category: string;
   stock: number;
   status: 'Active' | 'Inactive';
@@ -74,7 +75,7 @@ export interface CategoryTableData extends Record<string, unknown> {
   createdAt: string;
 }
 
-export interface OrderTableData {
+export interface OrderTableData extends Record<string, unknown> {
   id: number;
   customerName: string;
   email: string;

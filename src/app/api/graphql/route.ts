@@ -1,5 +1,6 @@
 import { ApolloServer } from '@apollo/server';
 import { startServerAndCreateNextHandler } from '@as-integrations/next';
+import { NextRequest } from 'next/server';
 import { typeDefs, resolvers } from '@/app/graphql';
 import { createContext } from '@/app/graphql/user/context';
 
@@ -13,7 +14,7 @@ const server = new ApolloServer({
 });
 
 const handler = startServerAndCreateNextHandler(server, {
-  context: async (req) => createContext(req),
+  context: async (req: NextRequest) => createContext(req),
 });
 
 export async function GET(request: Request) {

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import  prisma  from '@/lib/prisma';
 import { authenticateRequest } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await authenticateRequest(request);
@@ -16,7 +16,8 @@ export async function GET(
       );
     }
 
-    const userId = parseInt(params.id);
+    const { id } = await context.params;
+    const userId = parseInt(id);
     if (isNaN(userId)) {
       return NextResponse.json(
         { error: 'Invalid user ID' },
@@ -57,7 +58,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await authenticateRequest(request);
@@ -68,8 +69,8 @@ export async function PUT(
         { status: 401 }
       );
     }
-
-    const userId = parseInt(params.id);
+    const { id } = await context.params;
+    const userId = parseInt(id);
     if (isNaN(userId)) {
       return NextResponse.json(
         { error: 'Invalid user ID' },
@@ -151,7 +152,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await authenticateRequest(request);
@@ -162,8 +163,8 @@ export async function DELETE(
         { status: 401 }
       );
     }
-
-    const userId = parseInt(params.id);
+    const { id } = await context.params;
+    const userId = parseInt(id);
     if (isNaN(userId)) {
       return NextResponse.json(
         { error: 'Invalid user ID' },

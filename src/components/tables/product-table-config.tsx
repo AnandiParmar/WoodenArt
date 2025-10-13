@@ -58,12 +58,15 @@ export const productColumns: TableColumn<ProductTableData>[] = [
   }),
   createColumn<ProductTableData>('finalPrice', 'Final Price', {
     render: (_: unknown, item: ProductTableData) => {
-      const price = Number(item.price || 0);
-      const discount = Number(item.discount || 0);
-      const final = item.discountType === 'PERCENT' ? price - (price * discount) / 100 : price - discount;
-      const safe = isFinite(final) ? Math.max(final, 0) : price;
-      return <span className="font-semibold text-gray-900">₹{safe.toFixed(2)}</span>;
+      const fp = item.finalPrice != null ? item.finalPrice : (() => {
+        const price = Number(item.price || 0);
+        const discount = Number(item.discount || 0);
+        const final = item.discountType === 'PERCENT' ? price - (price * discount) / 100 : price - discount;
+        return isFinite(final) ? Math.max(final, 0) : price;
+      })();
+      return <span className="font-semibold text-gray-900">₹{fp.toFixed(2)}</span>;
     },
+    sortable: true,
   }),
   createColumn<ProductTableData>('stock', 'Stock', {
     render: (value: unknown) => {

@@ -55,6 +55,11 @@ export const listProducts = createAsyncThunk('product/list', async () => {
     price: typeof node.price === 'string' ? parseFloat(node.price) : node.price,
     discount: node.discount != null ? (typeof node.discount === 'string' ? parseFloat(node.discount) : node.discount) : undefined,
     discountType: node.discountType,
+    finalPrice: (() => {
+      const price = typeof node.price === 'string' ? parseFloat(node.price) : node.price;
+      const disc = node.discount != null ? (typeof node.discount === 'string' ? parseFloat(node.discount) : node.discount) : 0;
+      return node.discountType === 'PERCENT' ? price - (price * disc) / 100 : price - disc;
+    })(),
     category: node.category?.name ?? 'Uncategorized',
     stock: node.stock,
     status: node.isActive ? 'Active' : 'Inactive',
@@ -86,6 +91,11 @@ export const createProduct = createAsyncThunk(
       price: typeof p.price === 'string' ? parseFloat(p.price) : p.price,
       discount: p.discount != null ? (typeof p.discount === 'string' ? parseFloat(p.discount) : p.discount) : undefined,
       discountType: p.discountType,
+      finalPrice: (() => {
+        const price = typeof p.price === 'string' ? parseFloat(p.price) : p.price;
+        const disc = p.discount != null ? (typeof p.discount === 'string' ? parseFloat(p.discount) : p.discount) : 0;
+        return p.discountType === 'PERCENT' ? price - (price * disc) / 100 : price - disc;
+      })(),
       category: p.category?.name ?? 'Uncategorized',
       stock: p.stock,
       status: p.isActive ? 'Active' : 'Inactive',
@@ -154,6 +164,11 @@ export const updateProduct = createAsyncThunk(
       price: typeof p.price === 'string' ? parseFloat(p.price) : p.price,
       discount: p.discount != null ? (typeof p.discount === 'string' ? parseFloat(p.discount) : p.discount) : undefined,
       discountType: p.discountType,
+      finalPrice: (() => {
+        const price = typeof p.price === 'string' ? parseFloat(p.price) : p.price;
+        const disc = p.discount != null ? (typeof p.discount === 'string' ? parseFloat(p.discount) : p.discount) : 0;
+        return p.discountType === 'PERCENT' ? price - (price * disc) / 100 : price - disc;
+      })(),
       category: p.category?.name ?? 'Uncategorized',
       stock: p.stock,
       status: p.isActive ? 'Active' : 'Inactive',

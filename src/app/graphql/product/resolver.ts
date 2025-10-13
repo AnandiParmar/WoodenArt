@@ -221,11 +221,13 @@ export const productResolvers = {
       if (input.isActive !== undefined) data.isActive = input.isActive;
       // Only replace images/featureImage if provided; if omitted, keep existing (handled above)
       
-      // Handle categoryId separately using object property access
+      // Handle category update via relation connect
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ('categoryId' in input && typeof (input as any).categoryId === 'string') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data.categoryId = parseInt((input as any).categoryId);
+        const newCategoryId = parseInt((input as any).categoryId);
+        if (!Number.isNaN(newCategoryId)) {
+          (data as Prisma.ProductUpdateInput).category = { connect: { id: newCategoryId } };
+        }
       }
 
       const updated = await prisma.product.update({

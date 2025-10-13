@@ -1,5 +1,7 @@
 import React from 'react';
 import { TableColumn, TableFilter, TableAction, OrderTableData } from '../table-types';
+// Re-export OrderTableData so pages can import from this module
+export type { OrderTableData } from '../table-types';
 import { createColumn, createAction } from '../dynamic-table';
 import { ViewIcon, EditIcon } from '../icons';
 
