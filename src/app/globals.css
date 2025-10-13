@@ -157,8 +157,8 @@ a {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Logo animation classes */
-.logo-center {
+/* Logo animation classes - scoped to home page only */
+.home-page .logo-center {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -167,7 +167,7 @@ a {
   transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.logo-navbar {
+.home-page .logo-navbar {
   position: relative;
   top: auto;
   left: auto;
@@ -176,8 +176,8 @@ a {
   transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Smooth transitions for logo */
-.logo-transition {
+/* Smooth transitions for logo - scoped to home page only */
+.home-page .logo-transition {
   transition: all 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
@@ -234,23 +234,23 @@ a {
   }
 }
 
-.animate-logo-float {
+.home-page .animate-logo-float {
   animation: logoFloat 3s ease-in-out infinite;
 }
 
-.animate-logo-glow {
+.home-page .animate-logo-glow {
   animation: logoGlow 2s ease-in-out infinite;
 }
 
-.animate-slide-in-left {
+.home-page .animate-slide-in-left {
   animation: slideInFromLeft 1s ease-out;
 }
 
-.animate-slide-in-right {
+.home-page .animate-slide-in-right {
   animation: slideInFromRight 1s ease-out 0.3s both;
 }
 
-.animate-logo-bounce {
+.home-page .animate-logo-bounce {
   animation: logoBounce 1s ease-in-out;
 }
 

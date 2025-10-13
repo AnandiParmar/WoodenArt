@@ -8,23 +8,73 @@ datasource db {
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  price       Decimal  @db.Decimal(10, 2)
-  discount    Decimal? @db.Decimal(5, 2)
-  sku         String?  @unique
-  stock       Int      @default(0)
-  images      Json?
-  material    String?
-  color       String?
+  id             Int   @id @default(autoincrement())
+  name           String
+  description    String?
+  price          Decimal  @db.Decimal(10, 2)
+  discount       Decimal? @db.Decimal(5, 2)
+  sku            String?  @unique
+  stock          Int      @default(0)
+  featureImage   String?
+  images         Json?
+  material       String?
+  color          String?
   specialFeature String?
-  style       String?
-  isActive    Boolean  @default(true)
+  style          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  categoryId     Int
+  category       Category @relation(fields: [categoryId], references: [id])
+   averageRating  Float     @default(0)
+  totalRatings   Int       @default(0)
+  ratings        Rating[]
+  @@map("products")
+}
+
+model Category {
+  id          Int   @id @default(autoincrement())
+  name        String   @unique
+  description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  categoryID  Int
-  
 
-  @@map("products")
+  products Product[]
+
+  @@map("categories")
+}
+
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ratings   Rating[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId Int
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int
+  review    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, userId])
 }
