@@ -105,7 +105,7 @@ export const Navbar = () => {
                 <a
                   key={item.name}
                   href={item.href}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 text-gray-700 hover:text-blue-600 hover:bg-gray-50`}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 text-gray-700 hover:text-amber-700 hover:bg-gray-50`}
                 >
                   {item.name}
                 </a>
@@ -152,7 +152,7 @@ export const Navbar = () => {
               <div className="flex items-center space-x-2">
                 <Link
                   href="/login"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 text-gray-700 hover:text-blue-600 hover:bg-gray-50`}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 text-gray-700 hover:text-amber-700 hover:bg-gray-50`}
                 >
                   Login
                 </Link>
@@ -161,7 +161,7 @@ export const Navbar = () => {
                   className={`
                     px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-300 
                     hover:scale-105 hover:shadow-lg transform hover:-translate-y-0.5
-                    bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white
+                    bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white
                   `}
                 >
                   Get Started
@@ -176,7 +176,7 @@ export const Navbar = () => {
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className={`p-3 rounded-lg transition-all duration-300 ${
                 shouldShowNavbar 
-                  ? 'text-gray-700 hover:text-blue-600 hover:bg-gray-50' 
+                  ? 'text-gray-700 hover:text-amber-700 hover:bg-gray-50' 
                   : 'text-white hover:text-gray-200 hover:bg-white/10'
               }`}
               aria-label="Toggle mobile menu"
@@ -223,7 +223,7 @@ export const Navbar = () => {
                   href={item.href}
                   className={`block px-4 py-3 rounded-lg text-base font-medium transition-all duration-300 hover:scale-105 ${
                     shouldShowNavbar 
-                      ? 'text-gray-700 hover:text-blue-600 hover:bg-gray-50' 
+                      ? 'text-gray-700 hover:text-amber-700 hover:bg-gray-50' 
                       : 'text-white hover:text-gray-200 hover:bg-white/10'
                   }`}
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -290,7 +290,7 @@ export const Navbar = () => {
                       onClick={() => setIsMobileMenuOpen(false)}
                       className={`w-full px-4 py-3 rounded-lg text-base font-medium transition-all duration-300 hover:scale-105 ${
                         isScrolled 
-                          ? 'text-gray-700 hover:text-accent-600 hover:bg-gray-50' 
+                          ? 'text-gray-700 hover:text-amber-700 hover:bg-gray-50' 
                           : 'text-white hover:text-gray-200 hover:bg-white/10'
                       }`}
                     >
@@ -303,7 +303,7 @@ export const Navbar = () => {
                         w-full px-6 py-3 rounded-xl font-semibold text-base transition-all duration-300 
                         hover:scale-105 hover:shadow-xl
                         ${isScrolled 
-                          ? 'bg-gradient-to-r from-accent-600 to-accent-700 hover:from-accent-700 hover:to-accent-800 text-white' 
+                          ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white' 
                           : 'bg-white/20 hover:bg-white/30 text-white border border-white/30'
                         }
                       `}

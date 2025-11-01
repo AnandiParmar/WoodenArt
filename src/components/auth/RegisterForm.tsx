@@ -57,7 +57,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
 
   return (
     <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-2xl border border-gray-100 backdrop-blur-sm">
-      <h2 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Create Account</h2>
+      <h2 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-amber-700 to-orange-700 bg-clip-text text-transparent">Create Account</h2>
       
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 shadow-sm flex items-center space-x-2">
@@ -81,7 +81,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
               value={formData.firstName}
               onChange={handleChange}
               required
-              className="block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
+              className="block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
               placeholder="John"
             />
           </div>
@@ -97,7 +97,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
               value={formData.lastName}
               onChange={handleChange}
               required
-              className="block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
+              className="block w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
               placeholder="Doe"
             />
           </div>
@@ -120,7 +120,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
               value={formData.email}
               onChange={handleChange}
               required
-              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
+              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
               placeholder="Enter your email"
             />
           </div>
@@ -143,7 +143,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
               value={formData.password}
               onChange={handleChange}
               required
-              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
+              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
               placeholder="Create a password"
             />
           </div>
@@ -166,7 +166,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
               value={formData.confirmPassword}
               onChange={handleChange}
               required
-              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
+              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 transition-all duration-200 hover:border-gray-400 text-gray-900 placeholder-gray-500"
               placeholder="Confirm your password"
             />
           </div>
@@ -175,7 +175,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
         <button
           type="submit"
           disabled={loading}
-          className="group relative w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl text-lg font-semibold text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:via-purple-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] shadow-lg"
+          className="group relative w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl text-lg font-semibold text-white bg-gradient-to-r from-amber-600 via-amber-700 to-orange-700 hover:from-amber-700 hover:via-amber-800 hover:to-orange-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] shadow-lg"
         >
           {loading ? (
             <>
@@ -213,7 +213,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="font-semibold text-indigo-600 hover:text-indigo-500 transition-colors duration-200 hover:underline"
+              className="font-semibold text-amber-700 hover:text-amber-800 transition-colors duration-200 hover:underline"
             >
               here
             </button>

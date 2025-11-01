@@ -111,7 +111,16 @@ export class AuthService {
         where: { email }
       });
 
-      if (!user || !user.isActive) {
+      if (!user) {
+        throw new Error('Invalid credentials');
+      }
+
+      // Check if email is verified (verifiedAt must exist and verificationToken must be null)
+      if (!user.verifiedAt || user.verificationToken !== null) {
+        throw new Error('Please verify email first');
+      }
+
+      if (!user.isActive) {
         throw new Error('Invalid credentials');
       }
 
@@ -139,7 +148,7 @@ export class AuthService {
       };
     } catch (error) {
       // If it's already a user-friendly error, re-throw it
-      if (error instanceof Error && error.message.includes('Invalid credentials')) {
+      if (error instanceof Error && (error.message.includes('Invalid credentials') || error.message.includes('Please verify email first'))) {
         throw error;
       }
       // For database connection errors or other technical errors, throw generic message

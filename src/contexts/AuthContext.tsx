@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;
   isAdmin: boolean;
 }
 
@@ -18,145 +19,111 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
+  const [hasChecked, setHasChecked] = useState(false);
 
   const isAdmin = user?.role === 'ADMIN';
 
+  // Don't auto-check on mount - only check when explicitly called (login, refresh, etc.)
   useEffect(() => {
-    checkAuth();
+    setLoading(false);
+    setHasChecked(true);
   }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = async (retryAfterRefresh = false) => {
+    // Prevent multiple simultaneous calls
+    if (loading && !retryAfterRefresh) return;
+    
+    setLoading(true);
     try {
-      // Try to use access token from localStorage/cookie via GraphQL me
-      const response = await fetch('/api/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `
-            query Me {
-              me {
-                id
-                email
-                firstName
-                lastName
-                role
-              }
-            }
-          `,
-        }),
-      });
-
+      const response = await fetch('/api/auth/me');
       if (response.ok) {
         const data = await response.json();
-        if (data.data?.me) {
-          setUser(data.data.me);
+        if (data.user) {
+          setUser(data.user);
           // Mirror into Redux
           dispatch(setUserAction({
-            id: Number(data.data.me.id) || null,
-            email: data.data.me.email || null,
-            firstName: data.data.me.firstName || null,
-            lastName: data.data.me.lastName || null,
-            role: (data.data.me.role as 'USER' | 'ADMIN') ?? null,
+            id: Number(data.user.id) || null,
+            email: data.user.email || null,
+            firstName: data.user.firstName || null,
+            lastName: data.user.lastName || null,
+            role: (data.user.role as 'USER' | 'ADMIN') ?? null,
           }));
+          setHasChecked(true);
+          setLoading(false);
           return;
         }
       }
 
-      // If me failed, try refresh flow
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        const refreshResp = await fetch('/api/graphql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `mutation Refresh($refreshToken: String!) { refreshToken(refreshToken: $refreshToken) { token } }`,
-            variables: { refreshToken },
-          }),
-        });
-        const refreshData = await refreshResp.json();
-        if (refreshData.data?.refreshToken?.token) {
-          const token: string = refreshData.data.refreshToken.token;
-          document.cookie = `auth-token=${token}; path=/; max-age=${60 * 60}; secure=${process.env.NODE_ENV === 'production'}; samesite=lax`;
-          localStorage.setItem('token', token);
-          // Re-try me
-          await checkAuth();
-          return;
+      // Only try refresh if this is the first attempt (not after refresh)
+      if (!retryAfterRefresh) {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+          try {
+            const refreshResp = await fetch('/api/graphql', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: `mutation Refresh($refreshToken: String!) { refreshToken(refreshToken: $refreshToken) { token } }`,
+                variables: { refreshToken },
+              }),
+            });
+            const refreshData = await refreshResp.json();
+            if (refreshData.data?.refreshToken?.token) {
+              const token: string = refreshData.data.refreshToken.token;
+              document.cookie = `auth-token=${token}; path=/; max-age=${60 * 60}; secure=${process.env.NODE_ENV === 'production'}; samesite=lax`;
+              localStorage.setItem('token', token);
+              // Re-try me only once with flag
+              await checkAuth(true);
+              return;
+            } else {
+              // Refresh failed, clear invalid tokens
+              localStorage.removeItem('refreshToken');
+              localStorage.removeItem('token');
+              document.cookie = 'auth-token=; path=/; max-age=0';
+            }
+          } catch (refreshError) {
+            // Refresh failed, clear invalid tokens
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('token');
+            document.cookie = 'auth-token=; path=/; max-age=0';
+          }
         }
       }
+
+      // No user found, clear state
+      setUser(null);
+      dispatch(clearUserAction());
     } catch (error) {
       console.error('Auth check failed:', error);
+      setUser(null);
+      dispatch(clearUserAction());
     } finally {
       setLoading(false);
+      setHasChecked(true);
     }
   };
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `
-            mutation Login($input: LoginInput!) {
-              login(input: $input) {
-                user {
-                  id
-                  email
-                  firstName
-                  lastName
-                  role
-                }
-                token
-                refreshToken
-              }
-            }
-          `,
-          variables: {
-            input: { email, password }
-          }
-        }),
-      });
-
+      const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Invalid credentials');
 
-      if (data.errors) {
-        // Check if it's a specific user error (like invalid credentials)
-        const errorMessage = data.errors[0].message || '';
-        if (errorMessage.includes('Invalid credentials') || 
-            errorMessage.includes('User with this email already exists') ||
-            errorMessage.includes('User not found') ||
-            errorMessage.includes('Unauthorized')) {
-          throw new Error(errorMessage);
-        }
-        // For any other errors (like database connection issues), show generic message
-        throw new Error('Internal Server Error');
-      }
-
-      if (data.data?.login) {
-        setUser(data.data.login.user);
-        // Mirror into Redux
-        const u = data.data.login.user;
-        dispatch(setUserAction({
-          id: Number(u.id) || null,
-          email: u.email || null,
-          firstName: u.firstName || 'User',
-          lastName: u.lastName || null,
-          role: (u.role as 'USER' | 'ADMIN') ?? null,
-        }));
-        // Persist tokens
-        const token: string = data.data.login.token;
-        const refreshToken: string = data.data.login.refreshToken;
-        localStorage.setItem('token', token);
-        localStorage.setItem('refreshToken', refreshToken);
-        // Cookie for middleware (1h)
-        document.cookie = `auth-token=${token}; path=/; max-age=${60 * 60}; secure=${process.env.NODE_ENV === 'production'}; samesite=lax`;
-      }
+      // Set user data directly from login response (no need to call /api/auth/me)
+      setUser(data.user);
+      dispatch(setUserAction({
+        id: Number(data.user.id) || null,
+        email: data.user.email || null,
+        firstName: data.user.firstName || 'User',
+        lastName: data.user.lastName || null,
+        role: (data.user.role as 'USER' | 'ADMIN') ?? null,
+      }));
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('refreshToken', data.refreshToken);
+      document.cookie = `auth-token=${data.token}; path=/; max-age=${60 * 60}; secure=${process.env.NODE_ENV === 'production'}; samesite=lax`;
+      setHasChecked(true);
     } catch (error) {
       // If it's already a user-friendly error, re-throw it
       if (error instanceof Error && (
@@ -174,65 +141,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (email: string, password: string, firstName: string, lastName: string) => {
     try {
-      const response = await fetch('/api/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `
-            mutation Register($input: RegisterInput!) {
-              register(input: $input) {
-                user {
-                  id
-                  email
-                  firstName
-                  lastName
-                  role
-                }
-                token
-                refreshToken
-              }
-            }
-          `,
-          variables: {
-            input: { email, password, firstName, lastName }
-          }
-        }),
-      });
-
+      const response = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, firstName, lastName }) });
       const data = await response.json();
-
-      if (data.errors) {
-        // Check if it's a specific user error (like email already exists)
-        const errorMessage = data.errors[0].message || '';
-        if (errorMessage.includes('User with this email already exists') ||
-            errorMessage.includes('Invalid credentials') ||
-            errorMessage.includes('User not found') ||
-            errorMessage.includes('Unauthorized')) {
-          throw new Error(errorMessage);
-        }
-        // For any other errors (like database connection issues), show generic message
-        throw new Error('Internal Server Error');
-      }
-
-      if (data.data?.register) {
-        setUser(data.data.register.user);
-        const u = data.data.register.user;
-        dispatch(setUserAction({
-          id: Number(u.id) || null,
-          email: u.email || null,
-          firstName: u.firstName || null,
-          lastName: u.lastName || null,
-          role: (u.role as 'USER' | 'ADMIN') ?? null,
-        }));
-        // Persist tokens
-        const token: string = data.data.register.token;
-        const refreshToken: string = data.data.register.refreshToken;
-        localStorage.setItem('token', token);
-        localStorage.setItem('refreshToken', refreshToken);
-        document.cookie = `auth-token=${token}; path=/; max-age=${60 * 60}; secure=${process.env.NODE_ENV === 'production'}; samesite=lax`;
-      }
+      if (!response.ok) throw new Error(data.error || 'Registration failed');
+      // Do not auto-login. Email verification is required.
     } catch (error) {
       // If it's already a user-friendly error, re-throw it
       if (error instanceof Error && (
@@ -275,8 +187,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refresh = async () => {
+    await checkAuth();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, isAdmin }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refresh, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

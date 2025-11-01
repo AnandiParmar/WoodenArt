@@ -97,3 +97,5 @@ next-env.d.ts
 
 /uploads
 /public/uploads
+# /public/generated_images
+# /public/shared

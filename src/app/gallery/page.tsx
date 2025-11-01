@@ -1,134 +1,208 @@
-'use client';
-
-import React from 'react';
-import SectionHeading from '@/components/section-heading';
-import { useAppDispatch, useAppSelector } from '@/redux/store';
-import { listProducts } from '@/redux/features/product/productActions';
+"use client";
+import { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import ImageLightbox from "@/components/ImageLightbox";
+import {
+    galleryImages,
+    galleryCategories,
+    gallerySubcategories,
+    type GalleryImage,
+    type GalleryCategory,
+    type SubcategoryItem,
+} from "../../shared/galleryData";
 
 export default function GalleryPage() {
-  const dispatch = useAppDispatch();
-  const products = useAppSelector((s: { product: { items: Array<{ id: number; name: string; featureImage?: string; images?: string[] }> } }) => s.product.items);
-  const [lightbox, setLightbox] = React.useState<string | null>(null);
-  const [visibleMap, setVisibleMap] = React.useState<Record<number, boolean>>({});
-  const [loadedMap, setLoadedMap] = React.useState<Record<number, boolean>>({});
-  const [tab, setTab] = React.useState<'ALL' | 'FEATURE' | 'GALLERY'>('ALL');
+    const [selectedCategory, setSelectedCategory] = useState("all");
+    const [selectedSubcategory, setSelectedSubcategory] = useState("all");
+    const [lightboxOpen, setLightboxOpen] = useState(false);
+    const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  React.useEffect(() => {
-    // If no products are in the store yet, pull them in so we can build the gallery
-    if (!products || products.length === 0) {
-      dispatch(listProducts());
-    }
-  }, [dispatch]);
+    // Using framer-motion viewport on elements instead of an external intersection observer
 
-  type ImageMeta = { src: string; product: string; type: 'FEATURE' | 'GALLERY' };
-  const imagesMeta = React.useMemo(() => {
-    const metas: ImageMeta[] = [];
-    for (const p of products || []) {
-      if (p && typeof p === 'object') {
-        const anyP = p as unknown as { name?: string; featureImage?: string; images?: unknown };
-        const title = anyP.name || 'Product';
-        if (anyP.featureImage) metas.push({ src: anyP.featureImage, product: title, type: 'FEATURE' });
-        const imgs = Array.isArray(anyP.images) ? (anyP.images as string[]) : [];
-        for (const u of imgs) metas.push({ src: u, product: title, type: 'GALLERY' });
-      }
-    }
-    const normalized = metas
-      .filter((m) => Boolean(m.src))
-      .map((m) => ({ ...m, src: m.src.startsWith('/public/') ? m.src.replace('/public', '') : m.src }));
-    // Deduplicate by url+type
-    const seen = new Set<string>();
-    return normalized.filter((m) => {
-      const key = `${m.src}|${m.type}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [products]);
+    const filteredImages: GalleryImage[] = useMemo(() => {
+        let filtered: GalleryImage[] = galleryImages;
 
-  // Ensure tiles are visible on initial render so users don't see empty space before hovering
-  React.useEffect(() => {
-    if (imagesMeta.length > 0) {
-      const map: Record<number, boolean> = {};
-      imagesMeta.forEach((_, i) => (map[i] = true));
-      setVisibleMap(map);
-    }
-  }, [imagesMeta.length]);
+        if (selectedCategory !== "all") {
+            filtered = filtered.filter((img: GalleryImage) => img.category === selectedCategory);
+        }
 
-  return (
-    <div className="min-h-screen bg-white pt-24">
-      <div className="max-w-6xl mx-auto px-6 py-16 space-y-12">
-        <SectionHeading overline="Gallery" title="Image Gallery" subtitle="Browse feature images and gallery photos from our products. Click any tile to view." />
+        if (selectedSubcategory !== "all") {
+            filtered = filtered.filter((img: GalleryImage) => img.subcategory === selectedSubcategory);
+        }
 
-        <div className="flex items-center gap-2">
-          {(['ALL','FEATURE','GALLERY'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-3 py-1 rounded-full text-sm border transition-colors ${tab===t ? 'bg-accent-600 text-white border-accent-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-            >{t === 'ALL' ? 'All' : t === 'FEATURE' ? 'Feature Images' : 'Gallery Images'}</button>
-          ))}
-        </div>
+        return filtered;
+    }, [selectedCategory, selectedSubcategory]);
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {imagesMeta.length === 0 && (
-            <p className="col-span-full text-gray-500">No images yet. Add products with images to see them here.</p>
-          )}
-          {imagesMeta
-            .filter((m) => tab === 'ALL' || m.type === tab)
-            .map((m, idx) => (
-            <div
-              key={`${m.src}-${idx}`}
-              className={`group relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50 cursor-pointer transition-all duration-500 ${
-                visibleMap[idx] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
-              }`}
-              onClick={() => setLightbox(m.src)}
-              onMouseEnter={() => setVisibleMap((v) => ({ ...v, [idx]: true }))}
-              style={{ transitionDelay: `${idx * 60}ms` }}
-            >
-              {/* Placeholder shimmer until image loads */}
-              <div className={`absolute inset-0 ${loadedMap[idx] ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}> 
-                <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse flex items-center justify-center text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v11a2 2 0 01-2 2H9.414a2 2 0 00-1.414.586L6 21v-3H6a2 2 0 01-2-2V5z" />
-                  </svg>
+    const availableSubcategories = useMemo(() => {
+        if (selectedCategory === "all" || selectedCategory === "products") {
+            return selectedCategory === "all"
+                ? [...gallerySubcategories.products, ...gallerySubcategories.furniture]
+                : gallerySubcategories.products;
+        }
+        return gallerySubcategories.furniture;
+    }, [selectedCategory]);
+
+    const openLightbox = (index: number) => {
+        setLightboxIndex(index);
+        setLightboxOpen(true);
+    };
+
+    const handleCategoryChange = (category: string) => {
+        setSelectedCategory(category);
+        setSelectedSubcategory("all");
+    };
+
+    return (
+        <>
+            <Navbar showLogo={true} />
+            <div className="min-h-screen pt-24 pb-20">
+                <div className="max-w-7xl mx-auto px-6">
+                    {/* Header */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.6 }}
+                        className="text-center mb-12"
+                    >
+                        <h1 className="font-serif text-4xl md:text-6xl font-semibold text-foreground mb-4">
+                            Our Gallery
+                        </h1>
+                        <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">
+                            Explore our extensive collection of handcrafted wooden products and furniture
+                        </p>
+                    </motion.div>
+
+                    {/* Main Category Filter */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.6, delay: 0.2 }}
+                        className="flex flex-wrap items-center justify-center gap-3 mb-8"
+                    >
+                        {galleryCategories.map((category: GalleryCategory) => (
+                            <Button
+                                key={category.id}
+                                variant={selectedCategory === category.id ? "default" : "outline"}
+                                onClick={() => handleCategoryChange(category.id)}
+                                className="font-semibold"
+                                data-testid={`button-category-${category.id}`}
+                            >
+                                {category.label}
+                                <Badge variant="secondary" className="ml-2">
+                                    {category.count}
+                                </Badge>
+                            </Button>
+                        ))}
+                    </motion.div>
+
+                    {/* Subcategory Filter */}
+                    {selectedCategory !== "all" && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mb-8 overflow-hidden"
+                        >
+                            <div className="flex flex-wrap items-center justify-center gap-2">
+                                <Badge
+                                    variant={selectedSubcategory === "all" ? "default" : "outline"}
+                                    className="cursor-pointer px-4 py-2 hover-elevate active-elevate-2"
+                                    onClick={() => setSelectedSubcategory("all")}
+                                    data-testid="badge-subcategory-all"
+                                >
+                                    All
+                                </Badge>
+                                {availableSubcategories.map((sub: SubcategoryItem) => (
+                                    <Badge
+                                        key={sub.id}
+                                        variant={selectedSubcategory === sub.id ? "default" : "outline"}
+                                        className="cursor-pointer px-4 py-2 hover-elevate active-elevate-2"
+                                        onClick={() => setSelectedSubcategory(sub.id)}
+                                        data-testid={`badge-subcategory-${sub.id}`}
+                                    >
+                                        {sub.label}
+                                    </Badge>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Results Count */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-center mb-8"
+                    >
+                        <p className="text-muted-foreground">
+                            Showing <span className="font-semibold text-foreground">{filteredImages.length}</span> items
+                        </p>
+                    </motion.div>
+
+                    {/* Gallery Grid */}
+                    <motion.div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        <AnimatePresence mode="popLayout">
+                            {filteredImages.map((image: GalleryImage, index: number) => (
+                                <motion.div
+                                    key={image.id}
+                                    layout
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    whileInView={{ opacity: 1, scale: 1 }}
+                                    viewport={{ once: true, amount: 0.2 }}
+                                    exit={{ opacity: 0, scale: 0.8 }}
+                                    transition={{ duration: 0.4, delay: index * 0.02 }}
+                                    className="group relative aspect-square overflow-hidden rounded-md hover-elevate active-elevate-2 cursor-pointer"
+                                    onClick={() => openLightbox(index)}
+                                    data-testid={`gallery-image-${image.id}`}
+                                >
+                                    <img
+                                        src={image.src}
+                                        alt={image.alt}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        loading="lazy"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <div className="absolute bottom-0 left-0 right-0 p-4">
+                                            <p className="text-white text-sm font-medium line-clamp-2">
+                                                {image.alt}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                    </motion.div>
+
+                    {/* Empty State */}
+                    {filteredImages.length === 0 && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="text-center py-20"
+                        >
+                            <p className="text-muted-foreground text-lg">
+                                No items found in this category. Please try a different filter.
+                            </p>
+                        </motion.div>
+                    )}
                 </div>
-              </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={m.src}
-                alt={`gallery-${idx}`}
-                loading="lazy"
-                onLoad={() => setLoadedMap((l) => ({ ...l, [idx]: true }))}
-                className={`w-full h-full object-cover transform group-hover:scale-110 transition-[transform,opacity,filter] duration-500 ${
-                  loadedMap[idx] ? 'opacity-100 blur-0' : 'opacity-0 blur-md'
-                }`}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="absolute top-2 left-2 text-[10px] font-semibold px-2 py-1 rounded-full bg-white/90 text-gray-800 border border-gray-200">{m.type === 'FEATURE' ? 'Feature' : 'Gallery'}</div>
-              <div className="absolute bottom-2 left-2 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">{m.product}</div>
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={() => setLightbox(null)}>
-          <div className="w-full max-w-3xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
-            <div className="relative rounded-xl overflow-auto shadow-2xl max-h-[85vh] bg-white p-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={lightbox} alt="preview" className="w-full h-auto object-contain block mx-auto" />
-              <button
-                onClick={() => setLightbox(null)}
-                className="absolute top-3 right-3 bg-white/90 hover:bg-white text-gray-900 rounded-full px-3 py-1 text-sm font-semibold shadow"
-              >
-                Close
-              </button>
+                {/* Lightbox */}
+                <ImageLightbox
+                    images={filteredImages.map((img) => ({ src: img.src, alt: img.alt }))}
+                    currentIndex={lightboxIndex}
+                    isOpen={lightboxOpen}
+                    onClose={() => setLightboxOpen(false)}
+                    onNext={() => setLightboxIndex((lightboxIndex + 1) % filteredImages.length)}
+                    onPrev={() =>
+                        setLightboxIndex((lightboxIndex - 1 + filteredImages.length) % filteredImages.length)
+                    }
+                />
             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+            <Footer />
+        </>
+    );
 }
-
-
