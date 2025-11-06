@@ -1,0 +1,51 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/mongodb';
+import { Product } from '@/models/Product';
+import { Category } from '@/models/Category';
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const first = parseInt(searchParams.get('first') || '100');
+
+    await connectToDatabase();
+    const products = await Product.find({}).sort({ createdAt: -1 }).limit(first).lean();
+
+    // Fetch categories in one go
+    const categoryIds = Array.from(new Set(products.map(p => p.categoryId).filter(Boolean))) as any[];
+    const categories = categoryIds.length > 0
+      ? await Category.find({ _id: { $in: categoryIds } }).select({ _id: 1, name: 1 }).lean()
+      : [];
+    const idToCategory = new Map(categories.map(c => [String(c._id), c.name]));
+
+    const rows = products.map((p: any) => {
+      const price = Number(p.price || 0);
+      const discount = p.discount != null ? Number(p.discount) : 0;
+      const finalPrice = discount > 0 ? price - (price * discount) / 100 : price;
+      return {
+        id: p._id ? String(p._id) : '',
+        name: p.name,
+        description: p.description || '',
+        price,
+        discount: p.discount != null ? discount : undefined,
+        discountType: 'PERCENT',
+        finalPrice,
+        category: idToCategory.get(String(p.categoryId)) || 'Uncategorized',
+        stock: p.stock || 0,
+        status: p.isActive ? 'Active' : 'Inactive',
+        createdAt: p.createdAt ? new Date(p.createdAt).toISOString().slice(0,10) : undefined,
+        image: p.featureImage || undefined,
+        featureImage: p.featureImage || undefined,
+        images: Array.isArray(p.images) ? p.images : [],
+      };
+    });
+
+    return NextResponse.json({ items: rows });
+  } catch (error) {
+    console.error('Products list error:', error);
+    return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
+  }
+}
+
+
+

@@ -19,14 +19,14 @@ export const productColumns: TableColumn<ProductTableData>[] = [
               alt={item.name}
               width={48}
               height={48}
-              className="w-12 h-12 rounded-lg object-cover"
+              className="w-12 h-12 rounded-lg object-contain"
               onError={(e) => {
                 console.error('Table image failed to load:', item.image, e);
                 e.currentTarget.src = '/window.svg';
               }}
-              onLoad={() => {
-                console.log('Table image loaded successfully:', item.image);
-              }}
+              // onLoad={() => {
+              //   console.log('Table image loaded successfully:', item.image);
+              // }}
             />
           ) : (
             <ProductIcon className="w-6 h-6 text-accent-600" />
@@ -43,7 +43,7 @@ export const productColumns: TableColumn<ProductTableData>[] = [
   createColumn<ProductTableData>('category', 'Category'),
   createColumn<ProductTableData>('price', 'Price', {
     render: (value: unknown) => {
-      const v = Number(value as number);
+      const v = Number(value as string);
       return <span className="font-semibold text-gray-900">₹{v.toFixed(2)}</span>;
     },
   }),
@@ -70,7 +70,7 @@ export const productColumns: TableColumn<ProductTableData>[] = [
   }),
   createColumn<ProductTableData>('stock', 'Stock', {
     render: (value: unknown) => {
-      const stockValue = value as number;
+      const stockValue = Number(value as string);
       return (
         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
           stockValue > 10 
@@ -159,7 +159,7 @@ export const createProductActions = (
 // Sample product data
 export const sampleProductData: ProductTableData[] = [
   {
-    id: 1,
+    id: "1",
     name: "Handcrafted Wooden Bowl",
     description: "Beautiful handcrafted wooden bowl made from oak",
     price: 45,
@@ -169,7 +169,7 @@ export const sampleProductData: ProductTableData[] = [
     createdAt: "2024-01-15",
   },
   {
-    id: 2,
+    id: "2",
     name: "Oak Wooden Table",
     description: "Solid oak dining table with traditional craftsmanship",
     price: 299,
@@ -179,7 +179,7 @@ export const sampleProductData: ProductTableData[] = [
     createdAt: "2024-01-10",
   },
   {
-    id: 3,
+    id: "3",
     name: "Decorative Wooden Vase",
     description: "Elegant wooden vase for home decoration",
     price: 89,
@@ -189,7 +189,7 @@ export const sampleProductData: ProductTableData[] = [
     createdAt: "2024-01-05",
   },
   {
-    id: 4,
+    id: "4",
     name: "Bamboo Cutting Board",
     description: "Eco-friendly bamboo cutting board",
     price: 35,
@@ -199,7 +199,7 @@ export const sampleProductData: ProductTableData[] = [
     createdAt: "2024-01-20",
   },
   {
-    id: 5,
+    id: "5",
     name: "Wooden Wall Art",
     description: "Hand-carved wooden wall decoration",
     price: 125,

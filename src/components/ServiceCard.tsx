@@ -26,14 +26,14 @@ export default function ServiceCard({ title, description, image, index }: Servic
       ref={ref}
       initial={{ opacity: 0, y: 50 }}
       animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
-      transition={{ duration: 0.6, delay: index * 0.1, ease: "easeOut" }}
+      transition={{ duration: 1.5, delay: index * 0.1, ease: "easeOut" }}
     >
-      <Card className="group overflow-hidden h-full hover-elevate active-elevate-2 transition-all duration-300">
-        <div className="aspect-[4/3] overflow-hidden">
+      <Card className="group overflow-hidden h-full hover-elevate active-elevate-2 transition-all duration-300 shadow-xl/30 border border-gray-200 bg-background/40 hover:shadow-xl p-2">
+        <div className="aspect-[4/4] overflow-hidden">
           <img
             src={image}
             alt={title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 border-b-1 border-gray-200"
           />
         </div>
         <CardHeader className="space-y-0 pb-2">
@@ -49,7 +49,7 @@ export default function ServiceCard({ title, description, image, index }: Servic
             onClick={handleLearnMore}
             data-testid={`button-learn-${title.toLowerCase().replace(/\s+/g, "-")}`}
           >
-            Learn More
+            Explore More
             <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
           </Button>
         </CardContent>

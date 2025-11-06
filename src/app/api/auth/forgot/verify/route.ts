@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User } from '@/models/User';
 
 export async function POST(req: NextRequest) {
   const { email, code } = await req.json();
   if (!email || !code) return NextResponse.json({ error: 'Invalid' }, { status: 400 });
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  await connectToDatabase();
+  const user = await User.findOne({ email }).lean();
   if (!user || !user.resetOtp || user.resetOtp !== code) {
     return NextResponse.json({ error: 'Invalid code' }, { status: 400 });
   }

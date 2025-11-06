@@ -6,7 +6,7 @@ import { CategoryTableData } from '@/components/table-types';
 
 // GraphQL response types
 interface GraphQLCategory {
-  id: string | number;
+  id: string ;
   name: string;
   description?: string | null;
   createdAt: string;
@@ -37,7 +37,7 @@ export const listCategories = createAsyncThunk('category/list', async () => {
   `;
   const res = await graphqlFetch<GraphQLCategoriesResponse>({ query });
   const rows: CategoryTableData[] = res.categories.map((c) => ({
-    id: Number(c.id),
+    id: c.id,
     name: c.name,
     description: c.description ?? '',
     productCount: c.products?.length || 0,
@@ -57,7 +57,7 @@ export const createCategory = createAsyncThunk(
     });
     const c = created.createCategory;
     const row: CategoryTableData = {
-      id: Number(c.id),
+      id: c.id,
       name: c.name,
       description: c.description ?? '',
       productCount: 0, // New categories start with 0 products
@@ -68,7 +68,29 @@ export const createCategory = createAsyncThunk(
   }
 );
 
-export const deleteCategory = createAsyncThunk('category/delete', async (id: number) => {
+export const updateCategory = createAsyncThunk(
+  'category/update',
+  async (input: { id: string; data: { name?: string; description?: string | null } }) => {
+    const mutation = `mutation UpdateCategory($id: ID!, $input: CategoryUpdateInput!) { updateCategory(id: $id, input: $input) { id name description createdAt } }`;
+    const updated = await graphqlFetch<{ updateCategory: GraphQLCategory }, { id: string; input: Record<string, unknown> }>({
+      query: mutation,
+      variables: { id: String(input.id), input: input.data },
+    });
+    const c = updated.updateCategory;
+    const row: CategoryTableData = {
+      id: c.id,
+      name: c.name,
+      description: c.description ?? '',
+      // Keep existing count on the client; it will refresh on next list
+      productCount: 0,
+      isActive: true,
+      createdAt: c.createdAt?.slice(0, 10),
+    };
+    return row;
+  }
+);
+
+export const deleteCategory = createAsyncThunk('category/delete', async (id: string) => {
   const mutation = `mutation DeleteCategory($id: ID!) { deleteCategory(id: $id) }`;
   await graphqlFetch<{ deleteCategory: boolean }, { id: string }>({ query: mutation, variables: { id: String(id) } });
   return id;

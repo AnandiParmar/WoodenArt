@@ -57,9 +57,15 @@ export async function graphqlFetch<D, V extends Record<string, unknown> = Record
     }
   }
 
+  const contentType = res.headers.get('content-type') || '';
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`GraphQL network error ${res.status}: ${text}`);
+  }
+
+  if (!contentType.includes('application/json')) {
+    const snippet = await res.text();
+    throw new Error(`GraphQL response is not JSON (content-type: ${contentType}). Snippet: ${snippet.slice(0, 200)}`);
   }
 
   const json = (await res.json()) as GraphQLResponse<D>;

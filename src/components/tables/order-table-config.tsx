@@ -117,7 +117,7 @@ export const createOrderActions = (
 // Sample order data
 export const sampleOrderData: OrderTableData[] = [
   {
-    id: 1,
+    id: "1",
     customerName: "John Doe",
     email: "john.doe@email.com",
     total: 299,
@@ -126,7 +126,7 @@ export const sampleOrderData: OrderTableData[] = [
     items: 2,
   },
   {
-    id: 2,
+    id: "2",
     customerName: "Jane Smith",
     email: "jane.smith@email.com",
     total: 89,
@@ -135,7 +135,7 @@ export const sampleOrderData: OrderTableData[] = [
     items: 1,
   },
   {
-    id: 3,
+    id: "3",
     customerName: "Bob Johnson",
     email: "bob.johnson@email.com",
     total: 125,
@@ -144,7 +144,7 @@ export const sampleOrderData: OrderTableData[] = [
     items: 3,
   },
   {
-    id: 4,
+    id: "4",
     customerName: "Alice Brown",
     email: "alice.brown@email.com",
     total: 45,
@@ -153,7 +153,7 @@ export const sampleOrderData: OrderTableData[] = [
     items: 1,
   },
   {
-    id: 5,
+    id: "5",
     customerName: "Charlie Wilson",
     email: "charlie.wilson@email.com",
     total: 199,

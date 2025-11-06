@@ -1,7 +1,8 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/prisma';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User } from '@/models/User';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const REFRESH_SECRET = process.env.REFRESH_SECRET || JWT_SECRET;
@@ -9,7 +10,7 @@ const JWT_EXPIRES_IN = '1h';
 const REFRESH_EXPIRES_IN = '7d';
 
 export interface UserPayload {
-  id: number;
+  id: string;
   email: string;
   role: 'USER' | 'ADMIN';
   firstName: string;
@@ -56,9 +57,8 @@ export class AuthService {
   ): Promise<AuthResponse> {
     try {
       // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email }
-      });
+      await connectToDatabase();
+      const existingUser = await User.findOne({ email }).lean();
 
       if (existingUser) {
         throw new Error('User with this email already exists');
@@ -68,22 +68,20 @@ export class AuthService {
       const hashedPassword = await this.hashPassword(password);
 
       // Create user
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          firstName,
-          lastName,
-          role: 'USER'
-        }
+      const userDoc = await User.create({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role: 'USER',
       });
 
       const userPayload: UserPayload = {
-        id: user.id,
-        email: user.email,
-        role: user.role as 'USER' | 'ADMIN',
-        firstName: user.firstName,
-        lastName: user.lastName
+        id: (userDoc as any)._id ? (userDoc as any)._id : 0,
+        email: userDoc.email,
+        role: userDoc.role as 'USER' | 'ADMIN',
+        firstName: userDoc.firstName,
+        lastName: userDoc.lastName
       };
 
       const token = this.generateToken(userPayload);
@@ -107,9 +105,8 @@ export class AuthService {
   static async login(email: string, password: string): Promise<AuthResponse> {
     try {
       // Find user
-      const user = await prisma.user.findUnique({
-        where: { email }
-      });
+      await connectToDatabase();
+      const user = await User.findOne({ email }).lean();
 
       if (!user) {
         throw new Error('Invalid credentials');
@@ -125,13 +122,13 @@ export class AuthService {
       }
 
       // Check password
-      const isValidPassword = await this.comparePassword(password, user.password);
+      const isValidPassword = await this.comparePassword(password, user.password as string);
       if (!isValidPassword) {
         throw new Error('Invalid credentials');
       }
 
       const userPayload: UserPayload = {
-        id: user.id,
+        id: (user as any)._id ? (user as any)._id : 0,
         email: user.email,
         role: user.role as 'USER' | 'ADMIN',
         firstName: user.firstName,
@@ -162,9 +159,8 @@ export class AuthService {
       if (!payload) return null;
 
       // Verify user still exists and is active
-      const user = await prisma.user.findUnique({
-        where: { id: payload.id }
-      });
+      await connectToDatabase();
+      const user = await User.findById(payload.id).lean();
 
       if (!user || !user.isActive) return null;
 
@@ -204,9 +200,62 @@ export function getTokenFromRequest(request: NextRequest): string | null {
 }
 
 export async function authenticateRequest(request: NextRequest): Promise<UserPayload | null> {
+  // First try to get token from cookie or header
   const token = getTokenFromRequest(request);
-  if (!token) return null;
+  if (token) {
+    const user = await AuthService.getUserFromToken(token);
+    if (user) return user;
+  }
 
-  return AuthService.getUserFromToken(token);
+  // Fallback: Check if isAuthenticated cookie is set
+  const isAuthenticated = request.cookies.get('isAuthenticated')?.value;
+  if (isAuthenticated === 'true') {
+    // Try to get user info from cookies or create a basic authenticated context
+    const userId = request.cookies.get('userId')?.value;
+    const email = request.cookies.get('email')?.value;
+    const role = request.cookies.get('role')?.value as 'USER' | 'ADMIN' | undefined;
+    
+    // If we have userId, try to fetch user from database
+    if (userId) {
+      try {
+        await connectToDatabase();
+        const { User } = await import('@/models/User');
+        const user = await User.findById(userId).lean();
+        if (user && user.isActive) {
+          return {
+            id: user._id.toString(),
+            email: user.email,
+            firstName: user.firstName || '',
+            lastName: user.lastName || '',
+            role: user.role as 'USER' | 'ADMIN',
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching user from database:', error);
+      }
+    }
+    
+    // If we have email, try to fetch user by email
+    if (email) {
+      try {
+        await connectToDatabase();
+        const { User } = await import('@/models/User');
+        const user = await User.findOne({ email }).lean();
+        if (user && user.isActive) {
+          return {
+            id: user._id.toString(),
+            email: user.email,
+            firstName: user.firstName || '',
+            lastName: user.lastName || '',
+            role: user.role as 'USER' | 'ADMIN',
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching user by email:', error);
+      }
+    }
+  }
+
+  return null;
 }
 

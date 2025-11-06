@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import  prisma  from '@/lib/prisma';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User } from '@/models/User';
 import { authenticateRequest } from '@/lib/auth';
 
 export async function GET(
@@ -17,27 +18,8 @@ export async function GET(
     }
 
     const { id } = await context.params;
-    const userId = parseInt(id);
-    if (isNaN(userId)) {
-      return NextResponse.json(
-        { error: 'Invalid user ID' },
-        { status: 400 }
-      );
-    }
-
-    const foundUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    await connectToDatabase();
+    const foundUser = await User.findById(id).select({ password: 0, verificationToken: 0, resetOtp: 0, resetOtpExpiresAt: 0 }).lean();
 
     if (!foundUser) {
       return NextResponse.json(
@@ -46,7 +28,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ data: foundUser });
+    return NextResponse.json({ data: { id: String(foundUser._id), firstName: foundUser.firstName, lastName: foundUser.lastName, email: foundUser.email, role: foundUser.role, isActive: foundUser.isActive, createdAt: foundUser.createdAt, updatedAt: foundUser.updatedAt } });
   } catch (error) {
     console.error('User fetch error:', error);
     return NextResponse.json(
@@ -70,21 +52,13 @@ export async function PUT(
       );
     }
     const { id } = await context.params;
-    const userId = parseInt(id);
-    if (isNaN(userId)) {
-      return NextResponse.json(
-        { error: 'Invalid user ID' },
-        { status: 400 }
-      );
-    }
+    await connectToDatabase();
 
     const body = await request.json();
     const { firstName, lastName, email, password, role, isActive } = body;
 
     // Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { id: userId }
-    });
+    const existingUser = await User.findById(id).lean();
 
     if (!existingUser) {
       return NextResponse.json(
@@ -95,9 +69,7 @@ export async function PUT(
 
     // Check if email is being changed and if it's already taken
     if (email && email !== existingUser.email) {
-      const emailExists = await prisma.user.findUnique({
-        where: { email }
-      });
+      const emailExists = await User.findOne({ email }).lean();
 
       if (emailExists) {
         return NextResponse.json(
@@ -122,24 +94,11 @@ export async function PUT(
       updateData.password = await bcrypt.hash(password, 12);
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const updatedUser = await User.findByIdAndUpdate(id, { $set: updateData }, { new: true }).select({ password: 0 }).lean();
 
     return NextResponse.json({
       message: 'User updated successfully',
-      data: updatedUser,
+      data: { id: String(updatedUser!._id), firstName: updatedUser!.firstName, lastName: updatedUser!.lastName, email: updatedUser!.email, role: updatedUser!.role, isActive: updatedUser!.isActive, createdAt: updatedUser!.createdAt, updatedAt: updatedUser!.updatedAt },
     });
   } catch (error) {
     console.error('User update error:', error);
@@ -164,18 +123,8 @@ export async function DELETE(
       );
     }
     const { id } = await context.params;
-    const userId = parseInt(id);
-    if (isNaN(userId)) {
-      return NextResponse.json(
-        { error: 'Invalid user ID' },
-        { status: 400 }
-      );
-    }
-
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { id: userId }
-    });
+    await connectToDatabase();
+    const existingUser = await User.findById(id).lean();
 
     if (!existingUser) {
       return NextResponse.json(
@@ -185,16 +134,14 @@ export async function DELETE(
     }
 
     // Prevent admin from deleting themselves
-    if (userId === user.id) {
+    if (String(id) === String(user.id)) {
       return NextResponse.json(
         { error: 'Cannot delete your own account' },
         { status: 400 }
       );
     }
 
-    await prisma.user.delete({
-      where: { id: userId }
-    });
+    await User.findByIdAndDelete(id);
 
     return NextResponse.json({
       message: 'User deleted successfully',

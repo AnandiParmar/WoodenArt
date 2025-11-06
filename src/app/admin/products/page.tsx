@@ -7,6 +7,7 @@ import { listCategories } from '@/redux/features/category/categoryActions';
 import { DynamicTable } from '@/components/dynamic-table';
 import { Modal } from '@/components/modal';
 import DynamicForm from '@/components/dynamic-form';
+import { toast } from 'react-toastify';
 import { 
   productColumns, 
   createProductActions, 
@@ -79,6 +80,8 @@ export default function ProductManagement() {
     })).unwrap();
 
     const productId = createdProduct.id;
+    // Convert to string for upload API (MongoDB ObjectId format)
+    const productIdStr = String(productId);
 
     // Upload feature image if present
     if (values.image) {
@@ -86,17 +89,21 @@ export default function ProductManagement() {
         const formData = new FormData();
         formData.append('file', values.image);
         
-        const uploadResponse = await fetch(`/api/upload?scope=product&id=${productId}`, {
+        const uploadResponse = await fetch(`/api/upload?scope=product&id=${productIdStr}`, {
           method: 'POST',
           body: formData,
         });
         
         const uploadResult = await uploadResponse.json();
-        if (uploadResult.success) {
+        if (uploadResult.success && uploadResult.url) {
           featureImageUrl = uploadResult.url;
+          toast.success('Feature image uploaded successfully');
+        } else {
+          toast.error(uploadResult.error || 'Failed to upload feature image');
         }
       } catch (error) {
         console.error('Feature image upload failed:', error);
+        toast.error('Failed to upload feature image');
       }
     }
 
@@ -109,32 +116,44 @@ export default function ProductManagement() {
             const formData = new FormData();
             formData.append('file', file);
             
-            const uploadResponse = await fetch(`/api/upload?scope=product_gallery&id=${productId}&index=${i}`, {
+            const uploadResponse = await fetch(`/api/upload?scope=product_gallery&id=${productIdStr}&index=${i}`, {
               method: 'POST',
               body: formData,
             });
             
             const uploadResult = await uploadResponse.json();
-            if (uploadResult.success) {
+            if (uploadResult.success && uploadResult.url) {
               galleryUrls.push(uploadResult.url);
+            } else {
+              toast.error(`Failed to upload gallery image ${i + 1}`);
             }
           } catch (error) {
-            console.error('Gallery image upload failed:', error);
+            console.error(`Gallery image ${i + 1} upload failed:`, error);
+            toast.error(`Failed to upload gallery image ${i + 1}`);
           }
         }
       }
+      if (galleryUrls.length > 0) {
+        toast.success(`${galleryUrls.length} gallery image(s) uploaded successfully`);
+      }
     }
 
-    // Update product with image URLs
-    await dispatch(updateProductAction({
-      id: productId,
-      input: {
-        discount: parsed.discount,
-        discountType: parsed.discountType ?? undefined,
-        featureImage: featureImageUrl,
-        images: galleryUrls.length > 0 ? galleryUrls : null,
-      },
-    }));
+    // Update product with image URLs - always update if we have any images
+    const updateData: { featureImage?: string | null; images?: string[] } = {};
+    if (featureImageUrl !== null) {
+      updateData.featureImage = featureImageUrl;
+    }
+    if (galleryUrls.length > 0) {
+      updateData.images = galleryUrls;
+    }
+    
+    // Only update if we have image data to save
+    if (Object.keys(updateData).length > 0) {
+      await dispatch(updateProductAction({
+        id: productId,
+        input: updateData,
+      })).unwrap();
+    }
 
     // Ensure latest data is reflected immediately
     await dispatch(listProducts());
@@ -161,19 +180,22 @@ export default function ProductManagement() {
     let featureImageUrl: string | null | undefined = undefined;
     let galleryUrls: string[] | undefined = undefined;
 
+    // Convert product ID to string for upload API
+    const productIdStr = String(editingProduct.id);
+
     // Handle feature image upload
     if (values.image) { // New feature image selected
       try {
         const formData = new FormData();
         formData.append('file', values.image);
         
-        const uploadResponse = await fetch(`/api/upload?scope=product&id=${editingProduct.id}`, {
+        const uploadResponse = await fetch(`/api/upload?scope=product&id=${productIdStr}`, {
           method: 'POST',
           body: formData,
         });
         
         const uploadResult = await uploadResponse.json();
-        if (uploadResult.success) {
+        if (uploadResult.success && uploadResult.url) {
           featureImageUrl = uploadResult.url;
         }
       } catch (error) {
@@ -195,13 +217,13 @@ export default function ProductManagement() {
             const formData = new FormData();
             formData.append('file', file);
             
-            const uploadResponse = await fetch(`/api/upload?scope=product_gallery&id=${editingProduct.id}&index=${Date.now()}_${i}`, {
+            const uploadResponse = await fetch(`/api/upload?scope=product_gallery&id=${productIdStr}&index=${Date.now()}_${i}`, {
               method: 'POST',
               body: formData,
             });
             
             const uploadResult = await uploadResponse.json();
-            if (uploadResult.success) {
+            if (uploadResult.success && uploadResult.url) {
               newGalleryUrls.push(uploadResult.url);
             }
           } catch (error) {
@@ -259,7 +281,7 @@ export default function ProductManagement() {
       const query = `
         query AllCategories { categories { id name } }
       `;
-      const res = await graphqlFetch<{ categories: { id: string | number; name: string }[] }>({ query });
+      const res = await graphqlFetch<{ categories: { id: string ; name: string }[] }>({ query });
       const categories = res.categories.map(c => ({ value: String(c.id), label: c.name }));
       setCategoryOptions(categories);
       // Add "All Categories" option for filter - use category names for filtering
@@ -357,7 +379,7 @@ export default function ProductManagement() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Value</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${data.reduce((sum, item) => sum + (item.price || 0), 0).toLocaleString()}
+                {data.reduce((sum, item) => sum + (item.price || 0), 0).toLocaleString()}
               </p>
             </div>
           </div>
@@ -375,7 +397,7 @@ export default function ProductManagement() {
           searchable={true}
           sortable={true}
           pagination={true}
-          pageSize={10}
+          pageSize={5}
           loading={loading}
           emptyMessage="No products found. Add your first product to get started."
         />
@@ -460,7 +482,7 @@ export default function ProductManagement() {
                     <img
                       src={viewingProduct.image}
                       alt={viewingProduct.name}
-                      className="w-full h-full object-cover rounded-xl"
+                      className="w-full h-full object-contain rounded-xl"
                       onError={(e) => {
                         e.currentTarget.src = '/window.svg';
                       }}
@@ -560,7 +582,7 @@ export default function ProductManagement() {
                       <img
                         src={imageUrl}
                         alt={`Gallery ${index + 1}`}
-                        className="w-full h-full object-cover rounded-lg border border-gray-200"
+                        className="w-full h-full object-contain rounded-lg border border-gray-200"
                         onError={(e) => {
                           e.currentTarget.src = '/window.svg';
                         }}

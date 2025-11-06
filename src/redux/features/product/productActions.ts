@@ -6,7 +6,7 @@ import { ProductTableData } from '@/components/table-types';
 
 // GraphQL response types
 interface GraphQLProduct {
-  id: string | number;
+  id: string ;
   name: string;
   description?: string | null;
   price: string | number;
@@ -18,7 +18,7 @@ interface GraphQLProduct {
   images?: string[] | null;
   createdAt: string;
   category?: {
-    id: string | number;
+    id: string ;
     name: string;
   } | null;
 }
@@ -40,35 +40,10 @@ interface GraphQLUpdateProductResponse {
 }
 
 export const listProducts = createAsyncThunk('product/list', async () => {
-  const query = `
-    query Products($first: Int) {
-      products(first: $first) {
-        edges { node { id name description price discount discountType stock isActive featureImage images createdAt category { id name } } }
-      }
-    }
-  `;
-  const res = await graphqlFetch<GraphQLProductsResponse>({ query, variables: { first: 100 } });
-  const rows: ProductTableData[] = res.products.edges.map(({ node }) => ({
-    id: Number(node.id),
-    name: node.name,
-    description: node.description ?? '',
-    price: typeof node.price === 'string' ? parseFloat(node.price) : node.price,
-    discount: node.discount != null ? (typeof node.discount === 'string' ? parseFloat(node.discount) : node.discount) : undefined,
-    discountType: node.discountType,
-    finalPrice: (() => {
-      const price = typeof node.price === 'string' ? parseFloat(node.price) : node.price;
-      const disc = node.discount != null ? (typeof node.discount === 'string' ? parseFloat(node.discount) : node.discount) : 0;
-      return node.discountType === 'PERCENT' ? price - (price * disc) / 100 : price - disc;
-    })(),
-    category: node.category?.name ?? 'Uncategorized',
-    stock: node.stock,
-    status: node.isActive ? 'Active' : 'Inactive',
-    createdAt: node.createdAt?.slice(0, 10),
-    image: node.featureImage ?? undefined,
-    featureImage: node.featureImage ?? undefined,
-    images: node.images && Array.isArray(node.images) ? node.images : [],
-  }));
-  return rows;
+  const res = await fetch('/api/products?first=100');
+  if (!res.ok) throw new Error('Failed to load products');
+  const data = await res.json();
+  return data.items as ProductTableData[];
 });
 
 export const createProduct = createAsyncThunk(
@@ -85,7 +60,7 @@ export const createProduct = createAsyncThunk(
     });
     const p = created.createProduct;
     const row: ProductTableData = {
-      id: Number(p.id),
+      id: p.id,
       name: p.name,
       description: p.description ?? '',
       price: typeof p.price === 'string' ? parseFloat(p.price) : p.price,
@@ -108,7 +83,7 @@ export const createProduct = createAsyncThunk(
   }
 );
 
-export const deleteProduct = createAsyncThunk('product/delete', async (id: number) => {
+export const deleteProduct = createAsyncThunk('product/delete', async (id: string) => {
   const mutation = `mutation DeleteProduct($id: ID!) { deleteProduct(id: $id) }`;
   await graphqlFetch<{ deleteProduct: boolean }, { id: string }>({ query: mutation, variables: { id: String(id) } });
   return id;
@@ -120,7 +95,7 @@ export const updateProduct = createAsyncThunk(
     id,
     input,
   }: {
-    id: number;
+    id: string;
     input: {
       name?: string;
       description?: string;
@@ -158,7 +133,7 @@ export const updateProduct = createAsyncThunk(
     });
     const p = updated.updateProduct;
     const row: ProductTableData = {
-      id: Number(p.id),
+      id: p.id,
       name: p.name,
       description: p.description ?? '',
       price: typeof p.price === 'string' ? parseFloat(p.price) : p.price,

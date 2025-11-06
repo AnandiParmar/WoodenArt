@@ -11,6 +11,14 @@ export async function createContext(req: NextRequest): Promise<Context> {
   const { authenticateRequest } = await import('@/lib/auth');
   
   const user = await authenticateRequest(req);
+  // console.log("user",user)
+  // Debug logging
+  if (!user) {
+    // console.log('🔍 GraphQL Context - No user authenticated');
+    // console.log('Cookies:', Object.fromEntries(req.cookies.getAll().map(c => [c.name, c.value])));
+  } else {
+    //  console.log('✅ GraphQL Context - User authenticated:', user.email);
+  }
   
   return {
     user,

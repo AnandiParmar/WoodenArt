@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
-
+import Image from "next/image";
 interface LoadingAnimationProps {
   onComplete: () => void;
 }
@@ -68,35 +68,26 @@ export default function LoadingAnimation({ onComplete }: LoadingAnimationProps) 
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ duration:2, ease: "easeOut"}}
                 >
-                  <div className="w-16 h-16 md:w-20 md:h-20 bg-black rounded-md flex items-center justify-center">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="w-10 h-10 md:w-12 md:h-12 text-white"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" fill="white" />
-                      <path d="M2 17l10 5 10-5" stroke="white" />
-                      <path d="M2 12l10 5 10-5" stroke="white" />
-                    </svg>
+                  <div className="w-16 h-16 md:w-20 md:h-20  rounded-md flex items-center justify-center">
+                    <Image src="/logo1.png" alt="Logo" width={100} height={100} className="w-full h-full object-contain" />
                   </div>
                 </motion.div>
 
                 {/* Text from right */}
                 <motion.div
                   initial={{ x: 200, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 2, ease: "easeOut" }}
+                  animate={{ x: 0, opacity: 1 ,}}
+                  transition={{ duration: 2.5, ease: "easeInOut" }}
                   className="ml-4"
                 >
-                  <h1 className="font-serif text-3xl md:text-4xl font-bold leading-none text-black">
+                  <h2 className="font-serif text-3xl md:text-3xl font-bold leading-none text-black text-left">
                     TRILOK
                     <br />
-                    <span className="text-2xl md:text-3xl">WOODEN ART</span>
-                  </h1>
+                    WOODEN
+                    <br />
+                    ART
+                    {/* <span className="text-2xl md:text-3xl">WOODEN ART</span> */}
+                  </h2>
                 </motion.div>
               </div>
             </motion.div>

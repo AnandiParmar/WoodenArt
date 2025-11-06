@@ -91,7 +91,7 @@ export interface RatingSortInput {
 
 // GraphQL Response Types
 export interface ProductWithRelations {
-  id: number;
+  id: string;
   name: string;
   description: string | null;
   price: Decimal;
@@ -107,20 +107,20 @@ export interface ProductWithRelations {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
-  categoryId: number;
+  categoryId: string;
   averageRating: number;
   totalRatings: number;
   category?: {
-    id: number;
+    id: string;
     name: string;
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
   };
   ratings?: Array<{
-    id: number;
-    productId: number;
-    userId: number;
+    id: string;
+    productId: string;
+    userId: string;
     rating: number;
     review: string | null;
     createdAt: Date;
@@ -129,7 +129,7 @@ export interface ProductWithRelations {
 }
 
 export interface CategoryWithRelations {
-  id: number;
+  id: string;
   name: string;
   description: string | null;
   createdAt: Date;
@@ -138,9 +138,9 @@ export interface CategoryWithRelations {
 }
 
 export interface RatingWithRelations {
-  id: number;
-  productId: number;
-  userId: number;
+  id: string;
+  productId: string;
+  userId: string;
   rating: number;
   review: string | null;
   createdAt: Date;

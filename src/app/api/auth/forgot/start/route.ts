@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User } from '@/models/User';
 import { sendEmail } from '@/lib/mailer';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -8,19 +9,17 @@ export async function POST(req: NextRequest) {
   const { email } = await req.json();
   if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 });
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  await connectToDatabase();
+  const user = await User.findOne({ email }).lean();
   if (!user) {
     return NextResponse.json({ error: 'Please register first or email is not available please register' }, { status: 404 });
   }
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-  await prisma.user.update({
-    where: { email },
-    data: {
-      resetOtp: code,
-      resetOtpExpiresAt: new Date(Date.now() + OTP_TTL_MS),
-    },
-  });
+  await User.updateOne(
+    { email },
+    { $set: { resetOtp: code, resetOtpExpiresAt: new Date(Date.now() + OTP_TTL_MS) } }
+  );
 
   const emailHtml = `
     <!DOCTYPE html>

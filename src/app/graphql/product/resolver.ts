@@ -1,4 +1,7 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { connectToDatabase } from '@/lib/mongodb';
+import { Product as ProductModel } from '@/models/Product';
+import { Category as CategoryModel } from '@/models/Category';
+import { cacheGetJSON, cacheSetJSON } from '@/lib/redis';
 import { 
   ProductInput, 
   ProductUpdateInput, 
@@ -8,19 +11,31 @@ import {
   ProductConnection
 } from '../types';
 
-const prisma = new PrismaClient();
+type Direction = 'asc' | 'desc';
 
 export const productResolvers = {
   Query: {
     product: async (_: unknown, { id }: { id: string }): Promise<ProductWithRelations | null> => {
-      const result = await prisma.product.findUnique({
-        where: { id: parseInt(id) },
-        include: {
-          category: true,
-          ratings: true,
-        },
-      });
-      return result as unknown as ProductWithRelations | null;
+      await connectToDatabase();
+      const p = await ProductModel.findById(id).lean();
+      if (!p) return null;
+      const category = p.categoryId ? await CategoryModel.findById(p.categoryId).select({ _id: 1, name: 1 }).lean() : null;
+      return {
+        id: String(p._id),
+        name: p.name,
+        description: p.description || null,
+        price: Number(p.price),
+        discount: p.discount != null ? Number(p.discount) : null,
+        discountType: 'PERCENT',
+        stock: p.stock,
+        isActive: p.isActive,
+        featureImage: p.featureImage || null,
+        images: Array.isArray(p.images) ? p.images : [],
+        createdAt: (p.createdAt as Date).toISOString(),
+        categoryId: p.categoryId as any,
+        category: category ? { id: String(category._id), name: category.name } : null,
+        ratings: [],
+      } as unknown as ProductWithRelations;
     },
 
     products: async (
@@ -39,95 +54,97 @@ export const productResolvers = {
         before?: string;
       }
     ): Promise<ProductConnection> => {
-      const where: Prisma.ProductWhereInput = {};
+      await connectToDatabase();
+      const mongoFilter: Record<string, unknown> = {};
 
       if (filter) {
-        if (filter.categoryId) {
-          where.categoryId = parseInt(filter.categoryId);
-        }
-        if (filter.isActive !== undefined) {
-          where.isActive = filter.isActive;
-        }
-        if (filter.minPrice || filter.maxPrice) {
-          where.price = {};
-          if (filter.minPrice) {
-            where.price.gte = filter.minPrice;
-          }
-          if (filter.maxPrice) {
-            where.price.lte = filter.maxPrice;
-          }
-        }
-        if (filter.material) {
-          where.material = { contains: filter.material };
-        }
-        if (filter.color) {
-          where.color = { contains: filter.color };
-        }
-        if (filter.style) {
-          where.style = { contains: filter.style };
-        }
-        if (filter.search) {
-          where.OR = [
-            { name: { contains: filter.search } },
-            { description: { contains: filter.search } },
-            { material: { contains: filter.search } },
-            { color: { contains: filter.search } },
-            { style: { contains: filter.search } },
-          ];
-        }
+        if (filter.categoryId) mongoFilter['categoryId'] = filter.categoryId;
+        if (filter.isActive !== undefined) mongoFilter['isActive'] = filter.isActive;
+        const priceFilter: Record<string, unknown> = {};
+        if (filter.minPrice) priceFilter['$gte'] = Number(filter.minPrice as unknown as number);
+        if (filter.maxPrice) priceFilter['$lte'] = Number(filter.maxPrice as unknown as number);
+        if (Object.keys(priceFilter).length > 0) mongoFilter['price'] = priceFilter;
+        if (filter.material) mongoFilter['material'] = { $regex: filter.material, $options: 'i' };
+        if (filter.color) mongoFilter['color'] = { $regex: filter.color, $options: 'i' };
+        if (filter.style) mongoFilter['style'] = { $regex: filter.style, $options: 'i' };
+        if (filter.search) mongoFilter['$or'] = [
+          { name: { $regex: filter.search, $options: 'i' } },
+          { description: { $regex: filter.search, $options: 'i' } },
+          { material: { $regex: filter.search, $options: 'i' } },
+          { color: { $regex: filter.search, $options: 'i' } },
+          { style: { $regex: filter.search, $options: 'i' } },
+        ];
       }
 
-      let orderBy: Prisma.ProductOrderByWithRelationInput = { createdAt: 'desc' };
+      let sortObj: Record<string, Direction> = { createdAt: 'desc' };
       
       if (sort) {
         const direction = sort.direction.toLowerCase() as 'asc' | 'desc';
         switch (sort.field) {
           case 'NAME':
-            orderBy = { name: direction };
+            sortObj = { name: direction };
             break;
           case 'PRICE':
-            orderBy = { price: direction };
+            sortObj = { price: direction };
             break;
           case 'CREATED_AT':
-            orderBy = { createdAt: direction };
+            sortObj = { createdAt: direction };
             break;
           case 'UPDATED_AT':
-            orderBy = { updatedAt: direction };
+            sortObj = { updatedAt: direction };
             break;
           case 'AVERAGE_RATING':
-            orderBy = { averageRating: direction };
+            sortObj = { averageRating: direction };
             break;
           case 'STOCK':
-            orderBy = { stock: direction };
+            sortObj = { stock: direction };
             break;
           default:
-            orderBy = { createdAt: 'desc' };
+            sortObj = { createdAt: 'desc' };
         }
       }
 
       const skip = after ? parseInt(Buffer.from(after, 'base64').toString()) : 0;
       const take = first || 10;
 
-      const [products, totalCount] = await Promise.all([
-        prisma.product.findMany({
-          where,
-          orderBy,
-          skip,
-          take,
-          include: {
-            category: true,
-            ratings: true,
-          },
-        }),
-        prisma.product.count({ where }),
-      ]);
+      const cacheKey = `products:${Buffer.from(JSON.stringify({ mongoFilter, sortObj, skip, take })).toString('base64')}`;
+      const cached = await cacheGetJSON<{ edges: any[]; totalCount: number }>(cacheKey);
+      let products: any[];
+      let totalCount: number;
+      if (cached) {
+        products = cached.edges.map(e => e.nodeRaw);
+        totalCount = cached.totalCount;
+      } else {
+        products = await ProductModel.find(mongoFilter).sort(sortObj).skip(skip).limit(take).lean();
+        totalCount = await ProductModel.countDocuments(mongoFilter);
+      }
 
-      const edges = (products as unknown as ProductWithRelations[]).map((product, index) => ({
-        node: product as unknown as ProductWithRelations,
+      // Prefetch categories
+      const catIds = Array.from(new Set(products.map((p: any) => p.categoryId).filter(Boolean)));
+      const cats = catIds.length ? await CategoryModel.find({ _id: { $in: catIds } }).select({ _id: 1, name: 1 }).lean() : [];
+      const idToCat = new Map(cats.map(c => [String(c._id), c.name]));
+
+      const edges = (products as any[]).map((p, index) => ({
+        node: {
+          id: String(p._id),
+          name: p.name,
+          description: p.description || null,
+          price: Number(p.price),
+          discount: p.discount != null ? Number(p.discount) : null,
+          discountType: 'PERCENT',
+          stock: p.stock,
+          isActive: p.isActive,
+          featureImage: p.featureImage || null,
+          images: Array.isArray(p.images) ? p.images : [],
+          createdAt: (p.createdAt as Date).toISOString(),
+          category: p.categoryId ? { id: String(p.categoryId), name: idToCat.get(String(p.categoryId)) || 'Uncategorized' } : null,
+          ratings: [],
+        } as unknown as ProductWithRelations,
+        nodeRaw: p,
         cursor: Buffer.from((skip + index).toString()).toString('base64'),
       }));
 
-      return {
+      const result = {
         edges,
         pageInfo: {
           hasNextPage: skip + take < totalCount,
@@ -137,80 +154,115 @@ export const productResolvers = {
         },
         totalCount,
       };
+
+      if (!cached) {
+        await cacheSetJSON(cacheKey, { edges, totalCount }, 60);
+      }
+      return result;
     },
 
     productsByCategory: async (_: unknown, { categoryId }: { categoryId: string }): Promise<ProductWithRelations[]> => {
-      const results = await prisma.product.findMany({
-        where: { categoryId: parseInt(categoryId) },
-        include: {
-          category: true,
-          ratings: true,
-        },
-      });
-      return results as unknown as ProductWithRelations[];
+      await connectToDatabase();
+      const products = await ProductModel.find({ categoryId }).lean();
+      const category = await CategoryModel.findById(categoryId).select({ _id: 1, name: 1 }).lean();
+      return products.map((p: any) => ({
+        id: String(p._id),
+        name: p.name,
+        description: p.description || null,
+        price: Number(p.price),
+        discount: p.discount != null ? Number(p.discount) : null,
+        discountType: 'PERCENT',
+        stock: p.stock,
+        isActive: p.isActive,
+        featureImage: p.featureImage || null,
+        images: Array.isArray(p.images) ? p.images : [],
+        createdAt: (p.createdAt as Date).toISOString(),
+        category: category ? { id: String(category._id), name: category.name } : null,
+        ratings: [],
+      })) as unknown as ProductWithRelations[];
     },
 
     searchProducts: async (_: unknown, { query }: { query: string }): Promise<ProductWithRelations[]> => {
-      const results = await prisma.product.findMany({
-        where: {
-          OR: [
-            { name: { contains: query } },
-            { description: { contains: query } },
-            { material: { contains: query } },
-            { color: { contains: query } },
-            { style: { contains: query } },
-          ],
-        },
-        include: {
-          category: true,
-          ratings: true,
-        },
-      });
-      return results as unknown as ProductWithRelations[];
+      await connectToDatabase();
+      const results = await ProductModel.find({
+        $or: [
+          { name: { $regex: query, $options: 'i' } },
+          { description: { $regex: query, $options: 'i' } },
+          { material: { $regex: query, $options: 'i' } },
+          { color: { $regex: query, $options: 'i' } },
+          { style: { $regex: query, $options: 'i' } },
+        ],
+      }).lean();
+      return results.map((p: any) => ({
+        id: String(p._id),
+        name: p.name,
+        description: p.description || null,
+        price: Number(p.price),
+        discount: p.discount != null ? Number(p.discount) : null,
+        discountType: 'PERCENT',
+        stock: p.stock,
+        isActive: p.isActive,
+        featureImage: p.featureImage || null,
+        images: Array.isArray(p.images) ? p.images : [],
+        createdAt: (p.createdAt as Date).toISOString(),
+        category: null,
+        ratings: [],
+      })) as unknown as ProductWithRelations[];
     },
   },
 
   Mutation: {
     createProduct: async (_: unknown, { input }: { input: ProductInput }): Promise<ProductWithRelations> => {
-      const { categoryId, ...productData } = input;
-      const product = await prisma.product.create({
-        data: {
-          ...productData,
-          categoryId: parseInt(categoryId),
-        },
-        include: {
-          category: true,
-          ratings: true,
-        },
-      });
-      return product as unknown as ProductWithRelations;
+      await connectToDatabase();
+      const { categoryId, ...productData } = input as any;
+      const created = await ProductModel.create({ ...productData, categoryId });
+      const category = categoryId ? await CategoryModel.findById(categoryId).select({ _id: 1, name: 1 }).lean() : null;
+      return {
+        id: String(created._id),
+        name: created.name,
+        description: created.description || null,
+        price: Number(created.price),
+        discount: created.discount != null ? Number(created.discount) : null,
+        discountType: 'PERCENT',
+        stock: created.stock,
+        isActive: created.isActive,
+        featureImage: created.featureImage || null,
+        images: Array.isArray(created.images) ? created.images : [],
+        createdAt: (created.createdAt as Date).toISOString(),
+        category: category ? { id: String(category._id), name: category.name } : null,
+        ratings: [],
+      } as unknown as ProductWithRelations;
     },
 
     updateProduct: async (
       _: unknown,
       { id, input }: { id: string; input: ProductUpdateInput & { featureImage?: string | null } }
     ): Promise<ProductWithRelations> => {
-      const data: Prisma.ProductUpdateInput = {};
+      await connectToDatabase();
+      const data: Record<string, unknown> = {};
       
       // Copy all properties except categoryId
       if (input.name !== undefined) data.name = input.name;
       if (input.description !== undefined) data.description = input.description;
       if (input.price !== undefined) data.price = input.price;
       if (input.discount !== undefined) data.discount = input.discount;
-      if (input.discountType !== undefined) (data as Record<string, unknown>)['discountType'] = input.discountType;
+      if (input.discountType !== undefined) data['discountType'] = input.discountType;
       if (input.sku !== undefined) data.sku = input.sku;
       if (input.stock !== undefined) data.stock = input.stock;
       {
         const rec = input as unknown as Record<string, unknown>;
         if ('featureImage' in rec) {
           const fe = rec['featureImage'] as string | null | undefined;
-          // Assign via indexer to avoid type complaint in generated Prisma types
-          (data as Record<string, unknown>)['featureImage'] = fe as string | null | undefined;
+          // Allow null to clear featureImage, undefined to keep existing
+          if (fe !== undefined) {
+            (data as Record<string, unknown>)['featureImage'] = fe;
+          }
         }
         if ('images' in rec) {
-          const imgs = rec['images'] as Prisma.InputJsonValue | null | undefined;
-          if (imgs !== null && imgs !== undefined) {
-            data.images = imgs as Prisma.InputJsonValue;
+          const imgs = rec['images'] as unknown as string[] | null | undefined;
+          // Allow null or empty array to clear/replace images, undefined to keep existing
+          if (imgs !== undefined) {
+            data.images = imgs || []; // null becomes empty array
           }
         }
       }
@@ -224,64 +276,62 @@ export const productResolvers = {
       // Handle category update via relation connect
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ('categoryId' in input && typeof (input as any).categoryId === 'string') {
-        const newCategoryId = parseInt((input as any).categoryId);
-        if (!Number.isNaN(newCategoryId)) {
-          (data as Prisma.ProductUpdateInput).category = { connect: { id: newCategoryId } };
-        }
+        data['categoryId'] = (input as any).categoryId;
       }
 
-      const updated = await prisma.product.update({
-        where: { id: parseInt(id) },
-        data,
-        include: {
-          category: true,
-          ratings: true,
-        },
-      });
-      return updated as unknown as ProductWithRelations;
+      const updated = await ProductModel.findByIdAndUpdate(id, { $set: data }, { new: true }).lean();
+      if (!updated) throw new Error('Product not found');
+      const category = updated.categoryId ? await CategoryModel.findById(updated.categoryId).select({ _id: 1, name: 1 }).lean() : null;
+      return {
+        id: String(updated._id),
+        name: updated.name,
+        description: updated.description || null,
+        price: Number(updated.price),
+        discount: updated.discount != null ? Number(updated.discount) : null,
+        discountType: 'PERCENT',
+        stock: updated.stock,
+        isActive: updated.isActive,
+        featureImage: updated.featureImage || null,
+        images: Array.isArray(updated.images) ? updated.images : [],
+        createdAt: (updated.createdAt as Date).toISOString(),
+        category: category ? { id: String(category._id), name: category.name } : null,
+        ratings: [],
+      } as unknown as ProductWithRelations;
     },
 
     deleteProduct: async (_: unknown, { id }: { id: string }): Promise<boolean> => {
-      await prisma.product.delete({
-        where: { id: parseInt(id) },
-      });
+      await connectToDatabase();
+      await ProductModel.findByIdAndDelete(id);
       return true;
     },
 
     toggleProductStatus: async (_: unknown, { id }: { id: string }): Promise<ProductWithRelations> => {
-      const product = await prisma.product.findUnique({
-        where: { id: parseInt(id) },
-      });
-
-      if (!product) {
-        throw new Error('Product not found');
-      }
-
-      const updated = await prisma.product.update({
-        where: { id: parseInt(id) },
-        data: { isActive: !product.isActive },
-        include: {
-          category: true,
-          ratings: true,
-        },
-      });
-      return updated as unknown as ProductWithRelations;
+      await connectToDatabase();
+      const product = await ProductModel.findById(id).lean();
+      if (!product) throw new Error('Product not found');
+      const updated = await ProductModel.findByIdAndUpdate(id, { $set: { isActive: !product.isActive } }, { new: true }).lean();
+      const category = updated?.categoryId ? await CategoryModel.findById(updated.categoryId).select({ _id: 1, name: 1 }).lean() : null;
+      return {
+        id: String(updated!._id),
+        name: updated!.name,
+        description: updated!.description || null,
+        price: Number(updated!.price),
+        discount: updated!.discount != null ? Number(updated!.discount) : null,
+        discountType: 'PERCENT',
+        stock: updated!.stock,
+        isActive: updated!.isActive,
+        featureImage: updated!.featureImage || null,
+        images: Array.isArray(updated!.images) ? updated!.images : [],
+        createdAt: (updated!.createdAt as Date).toISOString(),
+        category: category ? { id: String(category._id), name: category.name } : null,
+        ratings: [],
+      } as unknown as ProductWithRelations;
     },
   },
 
   Product: {
-    category: async (parent: ProductWithRelations) => {
-      if (parent.category) return parent.category;
-      return await prisma.category.findUnique({
-        where: { id: parent.categoryId },
-      });
-    },
+    category: async (parent: ProductWithRelations) => parent.category,
 
-    ratings: async (parent: ProductWithRelations) => {
-      if (parent.ratings) return parent.ratings;
-      return await prisma.rating.findMany({
-        where: { productId: parent.id },
-      });
-    },
+    ratings: async (parent: ProductWithRelations) => parent.ratings || [],
   },
 };

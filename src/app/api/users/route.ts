@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User } from '@/models/User';
 import { authenticateRequest } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
@@ -23,36 +24,23 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Build where clause for search
-    const where = search ? {
-      OR: [
-        { firstName: { contains: search } },
-        { lastName: { contains: search } },
-        { email: { contains: search } },
+    await connectToDatabase();
+    const where: any = search ? {
+      $or: [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
       ],
     } : {};
 
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          role: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-        orderBy: { [sortBy]: sortOrder },
-        skip,
-        take: limit,
-      }),
-      prisma.user.count({ where }),
+    const sort: any = { [sortBy]: sortOrder.toLowerCase() === 'asc' ? 1 : -1 };
+    const [rows, total] = await Promise.all([
+      User.find(where).sort(sort).skip(skip).limit(limit).select({ password: 0, verificationToken: 0, resetOtp: 0, resetOtpExpiresAt: 0 }).lean(),
+      User.countDocuments(where),
     ]);
 
     return NextResponse.json({
-      data: users,
+      data: rows.map((u: any) => ({ id: String(u._id), firstName: u.firstName, lastName: u.lastName, email: u.email, role: u.role, isActive: u.isActive, createdAt: u.createdAt, updatedAt: u.updatedAt })),
       pagination: {
         page,
         limit,
@@ -92,9 +80,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
+    await connectToDatabase();
+    const existingUser = await User.findOne({ email }).lean();
 
     if (existingUser) {
       return NextResponse.json(
@@ -107,30 +94,18 @@ export async function POST(request: NextRequest) {
       const bcrypt = await import('bcryptjs');
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const newUser = await prisma.user.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        password: hashedPassword,
-        role: role || 'USER',
-        isActive: isActive !== undefined ? isActive : true,
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const newUserDoc = await User.create({
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      role: role || 'USER',
+      isActive: isActive !== undefined ? isActive : true,
     });
 
     return NextResponse.json({
       message: 'User created successfully',
-      data: newUser,
+      data: { id: String(newUserDoc._id), firstName: newUserDoc.firstName, lastName: newUserDoc.lastName, email: newUserDoc.email, role: newUserDoc.role, isActive: newUserDoc.isActive, createdAt: newUserDoc.createdAt, updatedAt: newUserDoc.updatedAt },
     });
   } catch (error) {
     console.error('User creation error:', error);

@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 
 export interface RecentProductItem {
-  id: number;
+  id: string;
   name: string;
   price: number;
   image?: string;
@@ -38,7 +38,7 @@ export function RecentProducts({ products, title = 'Recent Products' }: RecentPr
           <Link key={p.id} href={`/products/${p.id}`} className="group block bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all overflow-hidden">
             <div className="aspect-[4/3] bg-gray-50">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.image || '/window.svg'} alt={p.name} className="w-full h-full object-cover" />
+              <img src={p.image || '/window.svg'} alt={p.name} className="w-full h-full object-contain" />
             </div>
             <div className="p-4">
               <div className="flex items-center justify-between">

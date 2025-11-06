@@ -22,6 +22,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+
 // export const metadata: Metadata = {
 //   title: "Wooden Art - Crafting Digital Excellence",
 //   description: "Experience the perfect blend of traditional craftsmanship and modern digital innovation. Beautiful animations and warm earthy design.",
@@ -49,6 +50,7 @@ export default function RootLayout({
       setShowNavbar(true);
       setShowLoading(true);
     }
+
   }, []);
 
   const handleAnimationComplete = () => {
@@ -57,21 +59,53 @@ export default function RootLayout({
   };
 
   useEffect(() => {
-    if (!showLoading) {
-      const handleScroll = () => {
-        if (window.scrollY > 60) setShowNavbar(true);
-      };
-      window.addEventListener("scroll", handleScroll);
-      return () => window.removeEventListener("scroll", handleScroll);
+    // Don't attach scroll listener on admin/auth routes - navbar should never show there
+    const isAdminOrAuthRoute = pathname.startsWith('/login') || 
+                                pathname.startsWith('/register') || 
+                                pathname.startsWith('/forgot-password') || 
+                                pathname.startsWith('/reset') || 
+                                pathname.startsWith('/admin');
+    
+    if (!showLoading && !isAdminOrAuthRoute) {
+      // Navbar should always be visible on non-admin routes
+      // The showLogo prop controls logo visibility, not navbar visibility
+      setShowNavbar(true);
     }
-  }, [showLoading]);
+  }, [showLoading, pathname]);
+
+  useEffect(() => {
+    // Always hide navbar on admin and auth routes
+    if(pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset') || pathname.startsWith('/admin')) {
+      setShowNavbar(false);
+    } else {
+      // For other routes, always show navbar (visible at top and when scrolled)
+      setShowNavbar(true);
+    }
+  }, [pathname]);
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/public/logo2.jpg" />
+        <title>Trilok Wooden Art</title>
+        <meta name="description" content="Trilok Wooden Art is a platform for creating and sharing wooden art." />
+        <meta name="keywords" content="wooden art, art, craft, woodworking, handmade" />
+        <meta name="author" content="TriLok Wooden Art" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="robots" content="index, follow" />
+        <meta name="googlebot" content="index, follow" />
+        <meta name="bingbot" content="index, follow" />
+        <meta name="yandexbot" content="index, follow" />
+
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased ${showLoading ? "bg-background" : ""}`} >
         <ReduxProvider>
           <AuthProvider>
-            {/* Hide navbar on auth routes */}
-            {!(pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset')) && (
+            {/* Hide navbar on auth routes and admin routes - never show on admin routes */}
+            {!pathname.startsWith('/admin') && 
+             !pathname.startsWith('/login') && 
+             !pathname.startsWith('/register') && 
+             !pathname.startsWith('/forgot-password') && 
+             !pathname.startsWith('/reset') && (
               <Navbar showLogo={showNavbar} />
             )}
             {showLoading && <LoadingAnimation onComplete={handleAnimationComplete} />}

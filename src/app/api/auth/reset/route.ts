@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User } from '@/models/User';
 import { AuthService } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   const { email, code, password } = await req.json();
   if (!email || !code || !password) return NextResponse.json({ error: 'Invalid' }, { status: 400 });
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  await connectToDatabase();
+  const user = await User.findOne({ email }).lean();
   if (!user || !user.resetOtp || user.resetOtp !== code) {
     return NextResponse.json({ error: 'Invalid code' }, { status: 400 });
   }
@@ -16,14 +18,10 @@ export async function POST(req: NextRequest) {
   }
 
   const hashed = await AuthService.hashPassword(password);
-  await prisma.user.update({
-    where: { email },
-    data: {
-      password: hashed,
-      resetOtp: null,
-      resetOtpExpiresAt: null,
-    },
-  });
+  await User.updateOne(
+    { email },
+    { $set: { password: hashed, resetOtp: null, resetOtpExpiresAt: null } }
+  );
 
   return NextResponse.json({ ok: true });
 }

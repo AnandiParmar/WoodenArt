@@ -83,7 +83,7 @@
 //                 isVisible ? 'animate-slide-in-left' : 'opacity-0 -translate-x-20'
 //               }`}>
 //                 <Image
-//                   src="/logo1.jpg"
+//                   src="/logo1.png"
 //                   alt="Wooden Art Logo"
 //                   fill
 //                   className="object-contain"
@@ -111,7 +111,7 @@
 //             <div className="flex items-center space-x-0">
 //               <div className="relative w-10 h-10">
 //                 <Image
-//                   src="/logo1.jpg"
+//                   src="/logo1.png"
 //                   alt="Wooden Art Logo"
 //                   fill
 //                   className="object-contain"
@@ -270,6 +270,8 @@ import Gallery from "@/components/Gallery";
 import Craftsmanship from "@/components/Craftsmanship";
 import ContactCTA from "@/components/ContactCTA";
 import Footer from "@/components/Footer";
+import FeaturedProducts from "@/components/FeaturedProducts";
+import AdminQuickLink from "@/components/AdminQuickLink";
 
 export default function Home() {
   
@@ -279,11 +281,13 @@ export default function Home() {
     <div className="min-h-screen">
       
       <Hero />
+      <FeaturedProducts />
       <Services />
       <Gallery />
       <Craftsmanship />
       <ContactCTA />
       <Footer />
+      <AdminQuickLink />
     </div>
   );
 }

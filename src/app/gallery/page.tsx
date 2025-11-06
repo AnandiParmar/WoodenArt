@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,48 +14,234 @@ import {
     type GalleryCategory,
     type SubcategoryItem,
 } from "../../shared/galleryData";
+import DomeGallery from "@/components/Animations/Dome/DomeGallery";
+
+interface Product {
+    id: string;
+    name: string;
+    featureImage: string | null;
+    images?: string[] | null;
+    category?: {
+        id: string;
+        name: string;
+    } | null;
+}
+
+interface Category {
+    id: string;
+    name: string;
+}
 
 export default function GalleryPage() {
     const [selectedCategory, setSelectedCategory] = useState("all");
     const [selectedSubcategory, setSelectedSubcategory] = useState("all");
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [lightboxIndex, setLightboxIndex] = useState(0);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [loadingProducts, setLoadingProducts] = useState(false);
 
-    // Using framer-motion viewport on elements instead of an external intersection observer
+    // Fetch products and categories when products category is selected
+    useEffect(() => {
+       
+            setLoadingProducts(true);
+            
+            // Fetch categories
+            const fetchCategories = async () => {
+                try {
+                    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+                    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                    const categoriesRes = await fetch('/api/graphql', {
+                        method: 'POST',
+                        headers,
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            query: `query { categories { id name } }`
+                        }),
+                    });
+                    const categoriesData = await categoriesRes.json();
+                    if (categoriesData.data?.categories) {
+                        setCategories(categoriesData.data.categories);
+                    }
+                } catch (error) {
+                    console.error('Error fetching categories:', error);
+                }
+            };
+
+            // Fetch products
+            const fetchProducts = async () => {
+                try {
+                    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+                    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                    const productsRes = await fetch('/api/graphql', {
+                        method: 'POST',
+                        headers,
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            query: `query { products(filter: { isActive: true }, first: 100) { edges { node { id name featureImage images category { id name } } } } }`
+                        }),
+                    });
+                    const productsData = await productsRes.json();
+                    if (productsData.data?.products?.edges) {
+                        const productsList = productsData.data.products.edges.map((edge: any) => edge.node);
+                        setProducts(productsList);
+                    }
+                } catch (error) {
+                    console.error('Error fetching products:', error);
+                } finally {
+                    setLoadingProducts(false);
+                }
+            };
+
+            fetchCategories();
+            fetchProducts();
+        
+    }, []);
+
+    // Convert products to gallery image format - include all images (featureImage + images array)
+    const productImages: GalleryImage[] = useMemo(() => {
+        const images: GalleryImage[] = [];
+        
+        products
+            .filter((p) => {
+                // Check if product has any images (featureImage or images array)
+                const hasImages = p.featureImage || (p.images && Array.isArray(p.images) && p.images.length > 0);
+                if (!hasImages) return false;
+                
+                // Filter by subcategory if selected
+                if (selectedSubcategory === "all") return true;
+                return p.category && p.category.id === selectedSubcategory;
+            })
+            .forEach((p) => {
+                const productImagesList: string[] = [];
+                
+                // Add featureImage if it exists
+                if (p.featureImage) {
+                    productImagesList.push(p.featureImage);
+                }
+                
+                // Add all images from images array (avoid duplicates)
+                if (p.images && Array.isArray(p.images)) {
+                    p.images.forEach((img) => {
+                        if (img && typeof img === 'string' && !productImagesList.includes(img)) {
+                            productImagesList.push(img);
+                        }
+                    });
+                }
+                
+                // Create a gallery image for each product image (only if src is valid)
+                productImagesList
+                    .filter((imgSrc) => imgSrc && typeof imgSrc === 'string' && imgSrc.trim() !== '')
+                    .forEach((imgSrc, imgIndex) => {
+                        images.push({
+                            id: `product-${p.id}-image-${imgIndex}`,
+                            src: imgSrc,
+                            alt: `${p.name}${imgIndex > 0 ? ` - Image ${imgIndex + 1}` : ''}`,
+                            category: "products",
+                            subcategory: p.category?.id || "all",
+                        });
+                    });
+            });
+        
+        return images;
+    }, [products, selectedSubcategory]);
 
     const filteredImages: GalleryImage[] = useMemo(() => {
-        let filtered: GalleryImage[] = galleryImages;
-
-        if (selectedCategory !== "all") {
-            filtered = filtered.filter((img: GalleryImage) => img.category === selectedCategory);
+        // Build base set according to the selected category
+        let base: GalleryImage[];
+        if (selectedCategory === "products") {
+            base = productImages;
+        } else if (selectedCategory === "all") {
+            // Merge dynamic products with static/gallery furniture items
+            const FurnitureImages = galleryImages.filter((img: GalleryImage) => img.category === "furniture");
+            base = [...productImages, ...FurnitureImages];
+        } else {
+            // Furniture or other single categories based on static list
+            base = galleryImages.filter((img: GalleryImage) => img.category === selectedCategory);
         }
 
+        // Apply subcategory filter if any
         if (selectedSubcategory !== "all") {
-            filtered = filtered.filter((img: GalleryImage) => img.subcategory === selectedSubcategory);
+            base = base.filter((img: GalleryImage) => img.subcategory === selectedSubcategory);
         }
 
-        return filtered;
-    }, [selectedCategory, selectedSubcategory]);
+        return base;
+    }, [selectedCategory, selectedSubcategory, productImages]);
 
     const availableSubcategories = useMemo(() => {
-        if (selectedCategory === "all" || selectedCategory === "products") {
-            return selectedCategory === "all"
-                ? [...gallerySubcategories.products, ...gallerySubcategories.furniture]
-                : gallerySubcategories.products;
+        if (selectedCategory === "products") {
+            // Use dynamic categories from database
+            return categories.map((cat) => ({
+                id: cat.id,
+                label: cat.name,
+            }));
         }
+        
+        if (selectedCategory === "all") {
+            return [...gallerySubcategories.products, ...gallerySubcategories.furniture];
+        }
+        
         return gallerySubcategories.furniture;
-    }, [selectedCategory]);
+    }, [selectedCategory, categories]);
+
+    // Calculate dynamic counts based on actual images
+    const galleryCategoriesWithCounts = useMemo(() => {
+        const furnitureImagesCount = galleryImages.filter((img: GalleryImage) => img.category === "furniture").length;
+        const productsImagesCount = productImages.length;
+        const allItemsCount = furnitureImagesCount + productsImagesCount;
+
+        return galleryCategories.map((cat) => {
+            if (cat.id === "all") {
+                return { ...cat, count: allItemsCount };
+            } else if (cat.id === "products") {
+                return { ...cat, count: productsImagesCount };
+            } else if (cat.id === "furniture") {
+                return { ...cat, count: furnitureImagesCount };
+            }
+            return cat;
+        });
+    }, [productImages]);
 
     const openLightbox = (index: number) => {
+        // Ensure index is valid
+        if (index >= 0 && index < filteredImages.length) {
         setLightboxIndex(index);
         setLightboxOpen(true);
+        }
     };
 
     const handleCategoryChange = (category: string) => {
         setSelectedCategory(category);
         setSelectedSubcategory("all");
+        // Reset lightbox when category changes
+        setLightboxIndex(0);
+        setLightboxOpen(false);
     };
 
+    // Reset lightbox index when filtered images change
+    useEffect(() => {
+        if (lightboxIndex >= filteredImages.length) {
+            setLightboxIndex(0);
+            if (lightboxOpen) {
+                setLightboxOpen(false);
+            }
+        }
+    }, [filteredImages.length, lightboxIndex, lightboxOpen]);
+
+    // Prepare images array for lightbox - filter out any invalid entries
+    const lightboxImages = useMemo(() => {
+        return filteredImages
+            .filter((img) => img && img.src && img.alt)
+            .map((img) => ({ src: img.src, alt: img.alt }));
+    }, [filteredImages]);
+
+    // if(selectedCategory == 'all'){
+    //     return 
+    // }
     return (
         <>
             <Navbar showLogo={true} />
@@ -83,7 +269,7 @@ export default function GalleryPage() {
                         transition={{ duration: 0.6, delay: 0.2 }}
                         className="flex flex-wrap items-center justify-center gap-3 mb-8"
                     >
-                        {galleryCategories.map((category: GalleryCategory) => (
+                        {galleryCategoriesWithCounts.map((category: GalleryCategory) => (
                             <Button
                                 key={category.id}
                                 variant={selectedCategory === category.id ? "default" : "outline"}
@@ -138,12 +324,22 @@ export default function GalleryPage() {
                         className="text-center mb-8"
                     >
                         <p className="text-muted-foreground">
+                            {loadingProducts ? (
+                                "Loading products..."
+                            ) : (
+                                <>
                             Showing <span className="font-semibold text-foreground">{filteredImages.length}</span> items
+                                </>
+                            )}
                         </p>
                     </motion.div>
-
-                    {/* Gallery Grid */}
+                    {selectedCategory != 'all' && (
                     <motion.div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {loadingProducts ? (
+                            Array.from({ length: 8 }).map((_, i) => (
+                                <div key={i} className="aspect-square bg-gray-100 rounded-md animate-pulse" />
+                            ))
+                        ) : (
                         <AnimatePresence mode="popLayout">
                             {filteredImages.map((image: GalleryImage, index: number) => (
                                 <motion.div
@@ -161,7 +357,7 @@ export default function GalleryPage() {
                                     <img
                                         src={image.src}
                                         alt={image.alt}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110"
                                         loading="lazy"
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -174,10 +370,18 @@ export default function GalleryPage() {
                                 </motion.div>
                             ))}
                         </AnimatePresence>
+                        )}
                     </motion.div>
-
+                    )}
+                    {selectedCategory == 'all' && (
+                    <div className="flex justify-center items-center w-full min-h-[80vh] overflow-hidden">
+                        <div className="w-full max-w-[1400px] h-[80vh] mx-auto [&_.edge-fade]:hidden [&_.overlay]:hidden">
+                            <DomeGallery images={[...productImages, ...galleryImages.filter((img: GalleryImage) => img.category === "furniture").map((img: GalleryImage) => ({ src: img.src, alt: img.alt }))]} fit={0.5} fitBasis="auto" minRadius={600} maxRadius={Infinity} padFactor={0.25}  dragSensitivity={0.5} enlargeTransitionMs={300} dragDampening={2} openedImageWidth="400px" openedImageHeight="400px" imageBorderRadius="30px" openedImageBorderRadius="30px" grayscale={true} />
+                        </div>
+                    </div>
+                    )}
                     {/* Empty State */}
-                    {filteredImages.length === 0 && (
+                    {!loadingProducts && filteredImages.length === 0 && (
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -191,16 +395,18 @@ export default function GalleryPage() {
                 </div>
 
                 {/* Lightbox */}
+                {lightboxImages.length > 0 && (
                 <ImageLightbox
-                    images={filteredImages.map((img) => ({ src: img.src, alt: img.alt }))}
-                    currentIndex={lightboxIndex}
+                        images={lightboxImages}
+                        currentIndex={Math.min(lightboxIndex, lightboxImages.length - 1)}
                     isOpen={lightboxOpen}
                     onClose={() => setLightboxOpen(false)}
-                    onNext={() => setLightboxIndex((lightboxIndex + 1) % filteredImages.length)}
+                        onNext={() => setLightboxIndex((lightboxIndex + 1) % lightboxImages.length)}
                     onPrev={() =>
-                        setLightboxIndex((lightboxIndex - 1 + filteredImages.length) % filteredImages.length)
+                            setLightboxIndex((lightboxIndex - 1 + lightboxImages.length) % lightboxImages.length)
                     }
                 />
+                )}
             </div>
             <Footer />
         </>

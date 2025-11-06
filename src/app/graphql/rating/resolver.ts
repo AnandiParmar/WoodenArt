@@ -1,4 +1,6 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { connectToDatabase } from '@/lib/mongodb';
+import { Rating as RatingModel } from '@/models/Rating';
+import { Product as ProductModel } from '@/models/Product';
 import { 
   RatingInput, 
   RatingUpdateInput, 
@@ -8,21 +10,15 @@ import {
   RatingConnection
 } from '../types';
 
-const prisma = new PrismaClient();
+type Direction = 'asc' | 'desc';
 
 export const ratingResolvers = {
   Query: {
     rating: async (_: unknown, { id }: { id: string }): Promise<RatingWithRelations | null> => {
-      return await prisma.rating.findUnique({
-        where: { id: parseInt(id) },
-        include: {
-          product: {
-            include: {
-              category: true,
-            },
-          },
-        },
-      });
+      await connectToDatabase();
+      const r = await RatingModel.findById(id).lean();
+      if (!r) return null;
+      return { id: String(r._id), productId: r.productId, userId: r.userId, rating: r.rating, review: r.review || null } as any;
     },
 
     ratings: async (
@@ -41,49 +37,35 @@ export const ratingResolvers = {
         before?: string;
       }
     ): Promise<RatingConnection> => {
-      const where: Prisma.RatingWhereInput = {};
+      await connectToDatabase();
+      const filterQuery: Record<string, unknown> = {};
 
       if (filter) {
-        if (filter.productId) {
-          where.productId = parseInt(filter.productId);
-        }
-        if (filter.userId) {
-          where.userId = parseInt(filter.userId);
-        }
-        if (filter.minRating || filter.maxRating) {
-          where.rating = {};
-          if (filter.minRating) {
-            where.rating.gte = filter.minRating;
-          }
-          if (filter.maxRating) {
-            where.rating.lte = filter.maxRating;
-          }
-        }
-        if (filter.hasReview !== undefined) {
-          if (filter.hasReview) {
-            where.review = { not: null };
-          } else {
-            where.review = null;
-          }
-        }
+        if (filter.productId) filterQuery['productId'] = parseInt(filter.productId);
+        if (filter.userId) filterQuery['userId'] = parseInt(filter.userId);
+        const rFilter: Record<string, unknown> = {};
+        if (filter.minRating) rFilter['$gte'] = filter.minRating;
+        if (filter.maxRating) rFilter['$lte'] = filter.maxRating;
+        if (Object.keys(rFilter).length) filterQuery['rating'] = rFilter;
+        if (filter.hasReview !== undefined) filterQuery['review'] = filter.hasReview ? { $ne: null } : null;
       }
 
-      let orderBy: Prisma.RatingOrderByWithRelationInput = { createdAt: 'desc' };
+      let sortObj: Record<string, Direction> = { createdAt: 'desc' };
       
       if (sort) {
         const direction = sort.direction.toLowerCase() as 'asc' | 'desc';
         switch (sort.field) {
           case 'RATING':
-            orderBy = { rating: direction };
+            sortObj = { rating: direction };
             break;
           case 'CREATED_AT':
-            orderBy = { createdAt: direction };
+            sortObj = { createdAt: direction };
             break;
           case 'UPDATED_AT':
-            orderBy = { updatedAt: direction };
+            sortObj = { updatedAt: direction };
             break;
           default:
-            orderBy = { createdAt: 'desc' };
+            sortObj = { createdAt: 'desc' };
         }
       }
 
@@ -91,172 +73,108 @@ export const ratingResolvers = {
       const take = first || 10;
 
       const [ratings, totalCount] = await Promise.all([
-        prisma.rating.findMany({
-          where,
-          orderBy,
-          skip,
-          take,
-          include: {
-            product: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        }),
-        prisma.rating.count({ where }),
+        RatingModel.find(filterQuery).sort(sortObj).skip(skip).limit(take).lean(),
+        RatingModel.countDocuments(filterQuery),
       ]);
 
-      const edges = ratings.map((rating, index) => ({
-        node: rating,
+      const edges = ratings.map((r: any, index: number) => ({
+        node: {
+          id: String(r._id),
+          productId: r.productId,
+          userId: r.userId,
+          rating: r.rating,
+          review: r.review ?? null,
+          createdAt: (r.createdAt as Date).toISOString?.() ?? r.createdAt,
+          updatedAt: (r.updatedAt as Date).toISOString?.() ?? r.updatedAt,
+          product: undefined,
+        } as any,
         cursor: Buffer.from((skip + index).toString()).toString('base64'),
       }));
 
-      return {
-        edges,
-        pageInfo: {
-          hasNextPage: skip + take < totalCount,
-          hasPreviousPage: skip > 0,
-          startCursor: edges[0]?.cursor || null,
-          endCursor: edges[edges.length - 1]?.cursor || null,
-        },
-        totalCount,
-      };
+      return { edges, pageInfo: { hasNextPage: skip + take < totalCount, hasPreviousPage: skip > 0, startCursor: edges[0]?.cursor || null, endCursor: edges[edges.length - 1]?.cursor || null }, totalCount };
     },
 
     ratingsByProduct: async (_: unknown, { productId }: { productId: string }): Promise<RatingWithRelations[]> => {
-      return await prisma.rating.findMany({
-        where: { productId: parseInt(productId) },
-        include: {
-          product: {
-            include: {
-              category: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+      await connectToDatabase();
+      const rows = await RatingModel.find({ productId: parseInt(productId) }).sort({ createdAt: -1 }).lean();
+      return rows as any;
     },
 
     ratingsByUser: async (_: unknown, { userId }: { userId: string }): Promise<RatingWithRelations[]> => {
-      return await prisma.rating.findMany({
-        where: { userId: parseInt(userId) },
-        include: {
-          product: {
-            include: {
-              category: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+      await connectToDatabase();
+      const rows = await RatingModel.find({ userId: parseInt(userId) }).sort({ createdAt: -1 }).lean();
+      return rows as any;
     },
 
     averageRating: async (_: unknown, { productId }: { productId: string }): Promise<number> => {
-      const result = await prisma.rating.aggregate({
-        where: { productId: parseInt(productId) },
-        _avg: {
-          rating: true,
-        },
-      });
-
-      return result._avg.rating || 0;
+      await connectToDatabase();
+      const rows = await RatingModel.find({ productId: parseInt(productId) }).lean();
+      if (rows.length === 0) return 0;
+      const avg = rows.reduce((s, r: any) => s + (r.rating || 0), 0) / rows.length;
+      return avg;
     },
   },
 
   Mutation: {
     createRating: async (_: unknown, { input }: { input: RatingInput }): Promise<RatingWithRelations> => {
+      await connectToDatabase();
       // Validate rating value
       if (input.rating < 1 || input.rating > 5) {
         throw new Error('Rating must be between 1 and 5');
       }
 
       // Check if product exists
-      const product = await prisma.product.findUnique({
-        where: { id: parseInt(input.productId) },
-      });
+      const product = await ProductModel.findById(String(input.productId)).lean();
 
       if (!product) {
         throw new Error('Product not found');
       }
 
       // Check if user already rated this product
-      const existingRating = await prisma.rating.findUnique({
-        where: {
-          productId_userId: {
-            productId: parseInt(input.productId),
-            userId: parseInt(input.userId),
-          },
-        },
-      });
+      const existingRating = await RatingModel.findOne({ productId: parseInt(input.productId), userId: parseInt(input.userId) }).lean();
 
       if (existingRating) {
         throw new Error('User has already rated this product');
       }
 
       // Create rating
-      const rating = await prisma.rating.create({
-        data: {
-          productId: parseInt(input.productId),
-          userId: parseInt(input.userId),
-          rating: input.rating,
-          review: input.review,
-        },
-        include: {
-          product: {
-            include: {
-              category: true,
-            },
-          },
-        },
+      const rating = await RatingModel.create({
+        productId: parseInt(input.productId),
+        userId: parseInt(input.userId),
+        rating: input.rating,
+        review: input.review,
       });
 
       // Update product's average rating and total ratings
       await updateProductRatingStats(parseInt(input.productId));
 
-      return rating;
+      return { id: String(rating._id), productId: rating.productId, userId: rating.userId, rating: rating.rating, review: rating.review || null } as any;
     },
 
     updateRating: async (_: unknown, { id, input }: { id: string; input: RatingUpdateInput }): Promise<RatingWithRelations> => {
+      await connectToDatabase();
       // Validate rating value if provided
       if (input.rating && (input.rating < 1 || input.rating > 5)) {
         throw new Error('Rating must be between 1 and 5');
       }
 
-      const existingRating = await prisma.rating.findUnique({
-        where: { id: parseInt(id) },
-      });
+      const existingRating = await RatingModel.findById(id).lean();
 
       if (!existingRating) {
         throw new Error('Rating not found');
       }
 
-      const rating = await prisma.rating.update({
-        where: { id: parseInt(id) },
-        data: input,
-        include: {
-          product: {
-            include: {
-              category: true,
-            },
-          },
-        },
-      });
+      const rating = await RatingModel.findByIdAndUpdate(id, { $set: input }, { new: true }).lean();
 
       // Update product's average rating and total ratings
-      await updateProductRatingStats(existingRating.productId);
+      await updateProductRatingStats(existingRating.productId as any);
 
-      return rating;
+      return { id: String(rating!._id), productId: rating!.productId, userId: rating!.userId, rating: rating!.rating, review: rating!.review || null } as any;
     },
 
     deleteRating: async (_: unknown, { id }: { id: string }): Promise<boolean> => {
-      const existingRating = await prisma.rating.findUnique({
-        where: { id: parseInt(id) },
-      });
+      await connectToDatabase();
+      const existingRating = await RatingModel.findById(id).lean();
 
       if (!existingRating) {
         throw new Error('Rating not found');
@@ -264,12 +182,10 @@ export const ratingResolvers = {
 
       const productId = existingRating.productId;
 
-      await prisma.rating.delete({
-        where: { id: parseInt(id) },
-      });
+      await RatingModel.findByIdAndDelete(id);
 
       // Update product's average rating and total ratings
-      await updateProductRatingStats(productId);
+      await updateProductRatingStats(productId as any);
 
       return true;
     },
@@ -277,30 +193,18 @@ export const ratingResolvers = {
 
   Rating: {
     product: async (parent: RatingWithRelations) => {
-      if (parent.product) return parent.product;
-      return await prisma.product.findUnique({
-        where: { id: parent.productId },
-        include: {
-          category: true,
-        },
-      });
+      await connectToDatabase();
+      const p = await ProductModel.findById(String(parent.productId)).lean();
+      if (!p) return null as any;
+      return { id: String(p._id), name: p.name } as any;
     },
   },
 };
 
 // Helper function to update product rating statistics
 async function updateProductRatingStats(productId: number) {
-  const stats = await prisma.rating.aggregate({
-    where: { productId },
-    _avg: { rating: true },
-    _count: { rating: true },
-  });
-
-  await prisma.product.update({
-    where: { id: productId },
-    data: {
-      averageRating: stats._avg.rating || 0,
-      totalRatings: stats._count.rating,
-    },
-  });
+  await connectToDatabase();
+  const rows = await RatingModel.find({ productId }).lean();
+  const avg = rows.length ? rows.reduce((s, r: any) => s + (r.rating || 0), 0) / rows.length : 0;
+  await ProductModel.findByIdAndUpdate(String(productId), { $set: { averageRating: avg, totalRatings: rows.length } });
 }

@@ -75,7 +75,7 @@ export const createCategoryActions = (
 // Sample category data
 export const sampleCategoryData: CategoryTableData[] = [
   {
-    id: 1,
+    id: "1",
     name: "Kitchen Items",
     description: "Wooden items for kitchen use",
     productCount: 15,
@@ -83,7 +83,7 @@ export const sampleCategoryData: CategoryTableData[] = [
     createdAt: "2024-01-01",
   },
   {
-    id: 2,
+    id: "2",
     name: "Furniture",
     description: "Wooden furniture pieces",
     productCount: 8,
@@ -91,7 +91,7 @@ export const sampleCategoryData: CategoryTableData[] = [
     createdAt: "2024-01-02",
   },
   {
-    id: 3,
+    id: "3",
     name: "Decorative",
     description: "Decorative wooden art pieces",
     productCount: 12,
@@ -99,7 +99,7 @@ export const sampleCategoryData: CategoryTableData[] = [
     createdAt: "2024-01-03",
   },
   {
-    id: 4,
+    id: "4",
     name: "Garden",
     description: "Outdoor wooden items",
     productCount: 6,
@@ -107,7 +107,7 @@ export const sampleCategoryData: CategoryTableData[] = [
     createdAt: "2024-01-04",
   },
   {
-    id: 5,
+    id: "5" ,
     name: "Office",
     description: "Wooden office accessories",
     productCount: 4,

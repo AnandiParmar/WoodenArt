@@ -16,7 +16,7 @@ export default function Hero() {
       <div 
         className="absolute inset-0 bg-cover bg-center"
         style={{ 
-          backgroundImage: `url(/generated_images/Elegant_wooden_dining_set_09ac1588.png)`,
+          backgroundImage: `url(/Elegant_wooden_dining_set_09ac1588.png)`,
           backgroundAttachment: "fixed"
         }}
       >

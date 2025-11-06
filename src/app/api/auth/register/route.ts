@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User } from '@/models/User';
 import { AuthService } from '@/lib/auth';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '@/lib/mailer';
@@ -14,9 +15,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    await connectToDatabase();
+    const existing = await User.findOne({ email }).lean();
+    
     if (existing) {
-      return NextResponse.json({ error: 'User already exists' }, { status: 409 });
+      // Check if existing user is unverified and has expired token
+      if (!existing.verifiedAt && existing.verificationToken) {
+        try {
+          // Try to verify the stored token to check if it's expired
+          const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+          jwt.verify(existing.verificationToken, JWT_SECRET);
+          // Token is still valid - user exists and token not expired
+          return NextResponse.json({ error: 'User already exists. Please check your email for verification link.' }, { status: 409 });
+        } catch (tokenError) {
+          // Token is expired or invalid - delete the unverified user
+          await User.deleteOne({ email });
+          // Continue with registration below
+        }
+      } else {
+        // User exists and is verified, or doesn't have a token
+        return NextResponse.json({ error: 'User already exists' }, { status: 409 });
+      }
     }
 
     const hashed = await AuthService.hashPassword(password);
@@ -28,16 +47,14 @@ export async function POST(req: NextRequest) {
       { expiresIn: `${VERIFY_TTL_SEC}s` }
     );
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashed,
-        firstName,
-        lastName,
-        role: 'USER',
-        isActive: false,
-        verificationToken,
-      },
+    await User.create({
+      email,
+      password: hashed,
+      firstName,
+      lastName,
+      role: 'USER',
+      isActive: false,
+      verificationToken,
     });
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${req.nextUrl.protocol}//${req.nextUrl.host}`;

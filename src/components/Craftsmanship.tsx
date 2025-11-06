@@ -12,19 +12,19 @@ const craftSections: CraftSection[] = [
   {
     title: "Expert Artisans",
     description: "Our skilled craftsmen bring decades of experience, combining traditional woodworking techniques with modern precision to create furniture that stands the test of time.",
-    image: "/generated_images/Artisan_crafting_wooden_furniture_b7d4dfe9.png",
+    image: "/Artisan_crafting_wooden_furniture_b7d4dfe9.png",
     imageLeft: false,
   },
   {
     title: "Premium Materials",
     description: "We carefully select the finest quality timber, ensuring every piece showcases the natural beauty of wood grain while maintaining structural integrity and durability.",
-    image: "/generated_images/Premium_wood_grain_texture_7275bbaf.png",
+    image: "/Premium_wood_grain_texture_7275bbaf.png",
     imageLeft: true,
   },
   {
     title: "Precision Craftsmanship",
     description: "Every joint, every finish, every detail is meticulously crafted to perfection. Our attention to detail ensures furniture that is both beautiful and built to last generations.",
-    image: "/generated_images/Expert_wooden_furniture_joinery_f5c306a0.png",
+    image: "/Expert_wooden_furniture_joinery_f5c306a0.png",
     imageLeft: false,
   },
 ];

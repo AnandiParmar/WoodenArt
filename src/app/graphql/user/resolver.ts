@@ -1,6 +1,7 @@
 import { Context } from './context';
 import { AuthService } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User } from '@/models/User';
 
 // GraphQL argument types
 interface UsersArgs {
@@ -92,43 +93,32 @@ export const userResolvers = {
       const { first = 10, after, filter = {}, sort = { field: 'createdAt', direction: 'DESC' } } = args;
       const skip = after ? parseInt(Buffer.from(after, 'base64').toString()) : 0;
 
-      // Build where clause
-      const where: UserWhereClause = {};
-      
+      await connectToDatabase();
+
+      // Build Mongo filter
+      const where: any = {};
       if (filter.search) {
-        where.OR = [
-          { firstName: { contains: filter.search } },
-          { lastName: { contains: filter.search } },
-          { email: { contains: filter.search } },
+        const regex = new RegExp(filter.search, 'i');
+        where.$or = [
+          { firstName: { $regex: regex } },
+          { lastName: { $regex: regex } },
+          { email: { $regex: regex } },
         ];
       }
+      if (filter.role) where.role = filter.role;
+      if (filter.isActive !== undefined) where.isActive = filter.isActive;
 
-      if (filter.role) {
-        where.role = filter.role;
-      }
-
-      if (filter.isActive !== undefined) {
-        where.isActive = filter.isActive;
-      }
+      const sortDir = (sort.direction?.toLowerCase?.() as 'asc' | 'desc') || 'desc';
+      const sortSpec: Record<string, 1 | -1> = { [sort.field]: sortDir === 'asc' ? 1 : -1 };
 
       const [users, totalCount] = await Promise.all([
-        prisma.user.findMany({
-          where,
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-            isActive: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-          orderBy: { [sort.field]: (sort.direction?.toLowerCase?.() as 'asc' | 'desc') || 'desc' },
-          skip,
-          take: first,
-        }),
-        prisma.user.count({ where }),
+        User.find(where)
+          .select('email firstName lastName role isActive createdAt updatedAt')
+          .sort(sortSpec)
+          .skip(skip)
+          .limit(first)
+          .lean(),
+        User.countDocuments(where),
       ]);
 
       const edges = users.map((user, index) => ({
@@ -156,19 +146,10 @@ export const userResolvers = {
         throw new Error('Unauthorized');
       }
 
-      const user = await prisma.user.findUnique({
-        where: { id: parseInt(args.id) },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+      await connectToDatabase();
+      const user = await User.findById(args.id)
+        .select('email firstName lastName role isActive createdAt updatedAt')
+        .lean();
 
       if (!user) {
         throw new Error('User not found');
@@ -243,38 +224,32 @@ export const userResolvers = {
 
       const { email, password, firstName, lastName, role = 'USER', isActive = true } = args.input;
 
-      // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email }
-      });
+      await connectToDatabase();
+      const existingUser = await User.findOne({ email }).lean();
 
       if (existingUser) {
         throw new Error('User with this email already exists');
       }
 
-      // Hash password
       const hashedPassword = await AuthService.hashPassword(password);
-
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          firstName,
-          lastName,
-          role,
-          isActive,
-        },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+      const created = await User.create({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role,
+        isActive,
       });
+      const user = {
+        id: created._id.toString(),
+        email: created.email,
+        firstName: created.firstName,
+        lastName: created.lastName,
+        role: created.role,
+        isActive: created.isActive,
+        createdAt: created.createdAt,
+        updatedAt: created.updatedAt,
+      } as any;
 
       return user;
     },
@@ -285,12 +260,10 @@ export const userResolvers = {
       }
 
       const { id, ...updateData } = args.input;
-      const userId = parseInt(id);
+      const userId = id;
 
-      // Check if user exists
-      const existingUser = await prisma.user.findUnique({
-        where: { id: userId }
-      });
+      await connectToDatabase();
+      const existingUser = await User.findById(userId).lean();
 
       if (!existingUser) {
         throw new Error('User not found');
@@ -305,9 +278,7 @@ export const userResolvers = {
 
       // Check if email is being changed and if it's already taken
       if (updateData.email && updateData.email !== existingUser.email) {
-        const emailExists = await prisma.user.findUnique({
-          where: { email: updateData.email }
-        });
+        const emailExists = await User.findOne({ email: updateData.email }).lean();
 
         if (emailExists) {
           throw new Error('Email already in use');
@@ -329,20 +300,18 @@ export const userResolvers = {
         finalUpdateData.password = await AuthService.hashPassword(updateData.password);
       }
 
-      const user = await prisma.user.update({
-        where: { id: userId },
-        data: finalUpdateData,
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+      const updated = await User.findByIdAndUpdate(userId, finalUpdateData, { new: true }).lean();
+      if (!updated) throw new Error('User not found');
+      const user = {
+        id: updated._id.toString(),
+        email: updated.email,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        role: updated.role,
+        isActive: updated.isActive,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      } as any;
 
       return user;
     },
@@ -352,12 +321,10 @@ export const userResolvers = {
         throw new Error('Unauthorized');
       }
 
-      const userId = parseInt(args.id);
+      const userId = args.id;
 
-      // Check if user exists
-      const existingUser = await prisma.user.findUnique({
-        where: { id: userId }
-      });
+      await connectToDatabase();
+      const existingUser = await User.findById(userId).lean();
 
       if (!existingUser) {
         throw new Error('User not found');
@@ -368,9 +335,7 @@ export const userResolvers = {
         throw new Error('Cannot delete your own account');
       }
 
-      await prisma.user.delete({
-        where: { id: userId }
-      });
+      await User.findByIdAndDelete(userId);
 
       return true;
     },

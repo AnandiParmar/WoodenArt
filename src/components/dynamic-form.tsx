@@ -355,9 +355,10 @@ export function DynamicForm<TValues extends Record<string, unknown>>({
         ) : (
           <input
             {...common}
-            type={field.type === 'datetime' ? 'datetime-local' : field.type}
+            type={field.type === 'datetime' ? 'datetime-local' : field.type === 'date' ? 'date' : field.type || 'text'}
             value={String(value ?? '')}
             onChange={(e) => setFieldValue(field.name, e.target.value)}
+            style={{ color: '#111827' }}
           />
         )}
         {error && (

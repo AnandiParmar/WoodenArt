@@ -4,10 +4,16 @@ import { productSchema } from './product/schema';
 import { categorySchema } from './category/schema';
 import { ratingSchema } from './rating/schema';
 import { userSchema } from './user/schema';
+import { cartSchema } from './cart/schema';
+import { wishlistSchema } from './wishlist/schema';
+import { orderSchema } from './order/schema';
 import { productResolvers } from './product/resolver';
 import { categoryResolvers } from './category/resolver';
 import { ratingResolvers } from './rating/resolver';
 import { userResolvers } from './user/resolver';
+import { cartResolvers } from './cart/resolver';
+import { wishlistResolvers } from './wishlist/resolver';
+import { orderResolvers } from './order/resolver';
 
 // Base schema with common types and scalars
 const baseSchema = gql`
@@ -28,6 +34,9 @@ export const typeDefs = [
   categorySchema,
   ratingSchema,
   userSchema,
+  cartSchema,
+  wishlistSchema,
+  orderSchema,
 ];
 
 // Merge all resolvers
@@ -37,12 +46,18 @@ export const resolvers = {
     ...(categoryResolvers as any).Query,
     ...(ratingResolvers as any).Query,
     ...(userResolvers as any).Query,
+    ...(cartResolvers as any).Query,
+    ...(wishlistResolvers as any).Query,
+    ...(orderResolvers as any).Query,
   },
   Mutation: {
     ...(productResolvers as any).Mutation,
     ...(categoryResolvers as any).Mutation,
     ...(ratingResolvers as any).Mutation,
     ...(userResolvers as any).Mutation,
+    ...(cartResolvers as any).Mutation,
+    ...(wishlistResolvers as any).Mutation,
+    ...(orderResolvers as any).Mutation,
   },
   // Type-specific resolvers
   ...((productResolvers as any).Product ? { Product: (productResolvers as any).Product } : {}),

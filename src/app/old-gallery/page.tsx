@@ -7,7 +7,7 @@ import { listProducts } from '@/redux/features/product/productActions';
 
 export default function GalleryPage() {
   const dispatch = useAppDispatch();
-  const products = useAppSelector((s: { product: { items: Array<{ id: number; name: string; featureImage?: string; images?: string[] }> } }) => s.product.items);
+  const products = useAppSelector((s: { product: { items: Array<{ id: string; name: string; featureImage?: string; images?: string[] }> } }) => s.product.items);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [visibleMap, setVisibleMap] = React.useState<Record<number, boolean>>({});
   const [loadedMap, setLoadedMap] = React.useState<Record<number, boolean>>({});
@@ -99,7 +99,7 @@ export default function GalleryPage() {
                 alt={`gallery-${idx}`}
                 loading="lazy"
                 onLoad={() => setLoadedMap((l) => ({ ...l, [idx]: true }))}
-                className={`w-full h-full object-cover transform group-hover:scale-110 transition-[transform,opacity,filter] duration-500 ${
+                className={`w-full h-full object-contain transform group-hover:scale-110 transition-[transform,opacity,filter] duration-500 ${
                   loadedMap[idx] ? 'opacity-100 blur-0' : 'opacity-0 blur-md'
                 }`}
               />

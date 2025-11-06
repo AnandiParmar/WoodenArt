@@ -7,7 +7,7 @@ export const userTableConfig = {
     {
       key: 'id',
       label: 'ID',
-      type: 'number',
+      type: 'text',
       sortable: true,
     },
     {

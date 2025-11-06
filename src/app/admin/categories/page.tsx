@@ -6,6 +6,7 @@ import { listCategories, createCategory as createCategoryAction, deleteCategory 
 import { DynamicTable } from '@/components/dynamic-table';
 import { Modal } from '@/components/modal';
 import DynamicForm from '@/components/dynamic-form';
+import { toast } from 'react-toastify';
 import { 
   categoryColumns, 
   categoryFilters, 
@@ -24,17 +25,17 @@ export default function CategoryManagement() {
 
   // Action handlers
   const handleEdit = (item: CategoryTableData) => {
-    console.log('Edit category:', item);
+    // console.log('Edit category:', item);
     // Implement edit logic here
   };
 
   const handleDelete = (item: CategoryTableData) => {
-    console.log('Delete category:', item);
+    // console.log('Delete category:', item);
     dispatch(deleteCategoryAction(item.id));
   };
 
   const handleView = (item: CategoryTableData) => {
-    console.log('View category:', item);
+    // console.log('View category:', item);
     // Implement view logic here
   };
 
@@ -48,10 +49,50 @@ export default function CategoryManagement() {
         name: values.name.trim(),
         description: values.description?.trim() ?? null,
       })).unwrap();
+      toast.success('Category created successfully!', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
       setIsAddModalOpen(false);
+      // Refresh the category list
+      dispatch(listCategories());
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to create category';
-      alert(msg);
+      let errorMessage = 'Failed to create category';
+      
+      if (e instanceof Error) {
+        const errorMsg = e.message;
+        
+        // Parse specific error messages from GraphQL
+        if (errorMsg.includes('already exists') || 
+            errorMsg.includes('Category with this name already exists') ||
+            errorMsg.toLowerCase().includes('duplicate')) {
+          errorMessage = `Category "${values.name.trim()}" already exists. Please choose a different name.`;
+        } else if (errorMsg.includes('createdAt') || 
+                   errorMsg.includes('Cannot return null') ||
+                   errorMsg.includes('non-nullable field')) {
+          errorMessage = 'An error occurred while creating the category. Please try again.';
+        } else if (errorMsg.includes('name') && errorMsg.includes('required')) {
+          errorMessage = 'Category name is required.';
+        } else if (errorMsg.includes('Invalid credentials') || errorMsg.includes('Unauthorized')) {
+          errorMessage = 'You are not authorized to perform this action.';
+        } else if (errorMsg.includes('network error') || errorMsg.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (errorMsg.length > 0) {
+          // Use the GraphQL error message if available, but clean it up
+          errorMessage = errorMsg.replace(/GraphQL error:?\s*/i, '').trim() || 'Failed to create category';
+        }
+      } else if (typeof e === 'string') {
+        errorMessage = e;
+      }
+      
+      toast.error(errorMessage, {
+        position: 'top-right',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
     }
   };
 

@@ -50,7 +50,7 @@ export interface DynamicTableProps<T> {
 
 // Common column types for different data types
 export interface ProductTableData extends Record<string, unknown> {
-  id: number;
+  id: string;
   name: string;
   description?: string;
   price: number;
@@ -67,7 +67,7 @@ export interface ProductTableData extends Record<string, unknown> {
 }
 
 export interface CategoryTableData extends Record<string, unknown> {
-  id: number;
+  id: string;
   name: string;
   description?: string;
   productCount: number;
@@ -76,7 +76,7 @@ export interface CategoryTableData extends Record<string, unknown> {
 }
 
 export interface OrderTableData extends Record<string, unknown> {
-  id: number;
+  id: string;
   customerName: string;
   email: string;
   total: number;
@@ -86,7 +86,7 @@ export interface OrderTableData extends Record<string, unknown> {
 }
 
 export interface RatingTableData {
-  id: number;
+  id: string;
   productName: string;
   customerName: string;
   rating: number;

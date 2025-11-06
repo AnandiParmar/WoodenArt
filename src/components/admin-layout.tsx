@@ -88,7 +88,7 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
       {/* Sidebar */}
       <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl border-r border-gray-200 transform transition-transform duration-300 ease-in-out ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } lg:translate-x-0`}>
+      } lg:translate-x-0 lg:static lg:z-auto`}>
         {/* Header */}
         <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-gray-800 to-gray-900">
           <div className="flex items-center space-x-3">
@@ -114,7 +114,7 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
         <div className="px-4 py-6 border-b border-gray-200">
           <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl">
             <div className="w-12 h-12 bg-gradient-to-r from-accent-500 to-accent-600 rounded-lg flex items-center justify-center shadow-md p-1">
-              <Image src="/logo1.jpg" alt="Wooden Art" width={48} height={48} className="object-contain" />
+              <Image src="/logo1.png" alt="Wooden Art" width={48} height={48} className="object-contain" />
             </div>
             <div>
               <h2 className="text-sm font-bold text-gray-900">Wooden Art</h2>
@@ -179,26 +179,27 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
       {/* Main Content */}
       <div className="lg:ml-64">
         {/* Top Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between h-16 px-6">
-            <div className="flex items-center space-x-4">
+        <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
+          <div className="flex items-center justify-between h-16 px-4 md:px-6">
+            <div className="flex items-center space-x-3 md:space-x-4">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden text-gray-600 hover:text-gray-900"
+                className="lg:hidden p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500"
+                aria-label="Open sidebar"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <h2 className="text-xl font-semibold text-gray-800">
+              <h2 className="text-lg md:text-xl font-semibold text-gray-800">
                 {menuItems.find(item => item.href === pathname)?.name || 'Dashboard'}
               </h2>
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 md:space-x-4">
               {/* Notifications */}
-              <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent-600 text-white text-xs rounded-full flex items-center justify-center">
@@ -207,18 +208,22 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
               </button>
 
               {/* User Menu */}
-              <div className="flex items-center space-x-3">
+              <div className="hidden md:flex items-center space-x-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-accent-600 to-accent-700 rounded-full flex items-center justify-center">
                   <span className="text-black text-sm font-semibold">{(user.firstName?.[0] || 'A').toUpperCase()} </span>
                 </div>
                 <span className="text-gray-700 font-medium">{[user.firstName, user.lastName].filter(Boolean).join(' ') || 'User'}</span>
+              </div>
+              {/* Mobile User Avatar */}
+              <div className="md:hidden w-8 h-8 bg-gradient-to-r from-accent-600 to-accent-700 rounded-full flex items-center justify-center">
+                <span className="text-black text-sm font-semibold">{(user.firstName?.[0] || 'A').toUpperCase()} </span>
               </div>
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="p-6">
+        <main className="p-4 md:p-6">
           {children}
         </main>
       </div>

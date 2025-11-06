@@ -3,10 +3,11 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePathname } from "next/navigation";
+import { useAppSelector } from "@/redux/store";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Menu, X } from "lucide-react";
+import { MessageCircle, Menu, X, ShoppingBag, Heart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
+import Image from "next/image";
 interface NavbarProps {
   showLogo: boolean;
 }
@@ -17,6 +18,9 @@ export default function Navbar({ showLogo }: NavbarProps) {
   const pathname = usePathname();
   const [introDismissed, setIntroDismissed] = useState<boolean>(false);
   const { user, logout } = useAuth();
+  const cartItems = useAppSelector((state) => state.cart.items);
+  const wishlistItems = useAppSelector((state) => state.wishlist.items);
+  const persistedUser = useAppSelector((state) => state.user);
 
   useEffect(() => {
     try {
@@ -26,6 +30,20 @@ export default function Navbar({ showLogo }: NavbarProps) {
     window.addEventListener('intro-dismissed', handleIntro as EventListener);
     return () => window.removeEventListener('intro-dismissed', handleIntro as EventListener);
   }, []);
+
+  const isLoggedIn = Boolean(
+    (user && user.role) ||
+    (persistedUser && persistedUser.role) ||
+    (typeof window !== 'undefined' && localStorage.getItem('Authentication') === 'true')
+  );
+
+  const effectiveUser = (user && user.role) ? user : (persistedUser && persistedUser.role ? {
+    firstName: persistedUser.firstName || 'User',
+    lastName: persistedUser.lastName || '',
+    email: persistedUser.email || '',
+    role: persistedUser.role,
+    id: persistedUser.id || 0,
+  } as any : null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -52,7 +70,9 @@ export default function Navbar({ showLogo }: NavbarProps) {
         animate={{ y: showLogo ? 0 : -100 }}
         transition={{ duration: 0.3 }}
         className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-          isScrolled ? "bg-background/95 backdrop-blur-md shadow-sm border-b border-border" : "bg-transparent"
+          isScrolled
+            ? "bg-background/95 backdrop-blur-md shadow-sm border-b border-border "
+            : "bg-background/70 backdrop-blur-md shadow-sm bg-white/10"
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -65,27 +85,8 @@ export default function Navbar({ showLogo }: NavbarProps) {
             >
               {introDismissed ? (
                 <>
-                  <div className="w-10 h-10 bg-foreground rounded-md flex items-center justify-center flex-shrink-0">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="w-6 h-6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" fill="hsl(var(--background))" />
-                      <path d="M2 17l10 5 10-5" stroke="hsl(var(--background))" />
-                      <path d="M2 12l10 5 10-5" stroke="hsl(var(--background))" />
-                    </svg>
-                  </div>
-                  <div className="hidden sm:block">
-                    <h1 className="font-serif text-xl font-bold text-foreground leading-none">
-                      TRILOK
-                      <br />
-                      <span className="text-sm">WOODEN ART</span>
-                    </h1>
+                  <div className="w-45 h-10 bg-foreground rounded-md flex items-center justify-left flex-shrink-0">
+                    <Image src="/logo.png" alt="Logo" width={100} height={200} className="w-full h-full object-contain" />
                   </div>
                 </>
               ) : (
@@ -94,7 +95,7 @@ export default function Navbar({ showLogo }: NavbarProps) {
               )}
             </motion.div>
 
-            <div className="hidden md:flex items-center gap-8">
+            <div className="nav-inline-show items-center gap-8">
               <Link href="/" className="text-foreground hover:text-primary transition-colors font-medium" data-testid="link-nav-home">
                 Home
               </Link>
@@ -119,10 +120,39 @@ export default function Navbar({ showLogo }: NavbarProps) {
               <Link href="/gallery" className="text-foreground hover:text-primary transition-colors font-medium" data-testid="link-nav-gallery">
                 Gallery
               </Link>
+              <Link href="/shop" className="text-foreground hover:text-primary transition-colors font-medium">
+                Shop
+              </Link>
+              {effectiveUser && isLoggedIn && (
+                <>
+                  <Link href="/custom-furniture" className="text-foreground hover:text-primary transition-colors font-medium">
+                    Custom Furniture
+                  </Link>
+                  <Link href="/cart" className="relative text-foreground hover:text-primary transition-colors font-medium">
+                    <ShoppingBag className="w-5 h-5" />
+                    {cartItems.length > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {cartItems.length}
+                      </span>
+                    )}
+                  </Link>
+                  <Link href="/wishlist" className="relative text-foreground hover:text-primary transition-colors font-medium">
+                    <Heart className="w-5 h-5" />
+                    {wishlistItems.length > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {wishlistItems.length}
+                      </span>
+                    )}
+                  </Link>
+                  <Link href="/orders" className="text-foreground hover:text-primary transition-colors font-medium">
+                    Orders
+                  </Link>
+                </>
+              )}
               {/* Auth area */}
-              {user ? (
+              {effectiveUser && isLoggedIn ? (
                 <div className="flex items-center gap-3 ml-4">
-                  <span className="text-sm text-foreground/80">Hi, {user.firstName}</span>
+                  <span className="text-sm text-foreground/80">Hi, {effectiveUser.firstName}</span>
                   <button
                     onClick={logout}
                     className="px-3 py-2 rounded-md text-sm font-medium text-foreground hover:text-red-700 hover:bg-muted"
@@ -161,7 +191,7 @@ export default function Navbar({ showLogo }: NavbarProps) {
 
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden p-2 hover-elevate active-elevate-2 rounded-md"
+                className="nav-toggle-show p-2 hover-elevate active-elevate-2 rounded-md"
                 data-testid="button-mobile-menu"
               >
                 {isMobileMenuOpen ? (
@@ -182,7 +212,7 @@ export default function Navbar({ showLogo }: NavbarProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.2 }}
-            className="fixed top-[73px] left-0 right-0 z-30 bg-background/98 backdrop-blur-md border-b border-border md:hidden"
+            className="fixed top-[73px] left-0 right-0 z-30 bg-background/98 backdrop-blur-md border-b border-border nav-mobile-only"
           >
             <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">
               <Link 
@@ -219,9 +249,50 @@ export default function Navbar({ showLogo }: NavbarProps) {
               >
                 Gallery
               </Link>
-              {user ? (
+              <Link 
+                href="/shop" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block w-full text-left py-2 text-foreground hover:text-primary transition-colors font-medium"
+              >
+                Shop
+              </Link>
+              {effectiveUser && isLoggedIn ? (
+                <>
+                  <Link 
+                    href="/custom-furniture" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block w-full text-left py-2 text-foreground hover:text-primary transition-colors font-medium"
+                  >
+                    Custom Furniture
+                  </Link>
+                  <Link 
+                    href="/cart" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-2 w-full text-left py-2 text-foreground hover:text-primary transition-colors font-medium"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    Cart {cartItems.length > 0 && `(${cartItems.length})`}
+                  </Link>
+                  <Link 
+                    href="/wishlist" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-2 w-full text-left py-2 text-foreground hover:text-primary transition-colors font-medium"
+                  >
+                    <Heart className="w-4 h-4" />
+                    Wishlist {wishlistItems.length > 0 && `(${wishlistItems.length})`}
+                  </Link>
+                  <Link 
+                    href="/orders" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block w-full text-left py-2 text-foreground hover:text-primary transition-colors font-medium"
+                  >
+                    Orders
+                  </Link>
+                </>
+              ) : null}
+              {effectiveUser && isLoggedIn ? (
                 <div className="space-y-2">
-                  <div className="py-2 text-sm text-foreground/80">Hi, {user.firstName}</div>
+                  <div className="py-2 text-sm text-foreground/80">Hi, {effectiveUser.firstName}</div>
                   <button
                     onClick={() => {
                       logout();
