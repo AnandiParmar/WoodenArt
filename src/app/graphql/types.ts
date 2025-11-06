@@ -1,5 +1,5 @@
-import { PrismaClient, Prisma } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
+import { PrismaClient } from '@prisma/client';
+import type { Decimal } from '@prisma/client/runtime/library';
 
 // GraphQL Input Types (matching schema definitions)
 export interface ProductInput {
@@ -11,7 +11,7 @@ export interface ProductInput {
   sku?: string;
   stock?: number;
   featureImage?: string | null;
-  images?: Prisma.JsonValue;
+  images?: string[] | null;
   material?: string;
   color?: string;
   specialFeature?: string;
@@ -29,7 +29,7 @@ export interface ProductUpdateInput {
   sku?: string;
   stock?: number;
   featureImage?: string | null;
-  images?: Prisma.JsonValue;
+  images?: string[] | null;
   material?: string;
   color?: string;
   specialFeature?: string;
@@ -99,7 +99,7 @@ export interface ProductWithRelations {
   sku: string | null;
   stock: number;
   featureImage: string | null;
-  images: Prisma.JsonValue | null;
+  images: string[] | null;
   material: string | null;
   color: string | null;
   specialFeature: string | null;
