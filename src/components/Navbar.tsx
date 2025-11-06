@@ -72,7 +72,7 @@ export default function Navbar({ showLogo }: NavbarProps) {
         className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
           isScrolled
             ? "bg-background/95 backdrop-blur-md shadow-sm border-b border-border "
-            : "bg-background/70 backdrop-blur-md shadow-sm bg-white/10"
+            : " backdrop-blur-md shadow-sm bg-white/10"
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -90,8 +90,11 @@ export default function Navbar({ showLogo }: NavbarProps) {
                   </div>
                 </>
               ) : (
-                // Placeholder mount for animated logo to portal into after intro
-                <div id="nav-logo-mount" className="w-[170px] h-12" />
+                  <>
+                    <div className="w-45 h-10 bg-foreground rounded-md flex items-center justify-left flex-shrink-0">
+                      <Image src="/logo.png" alt="Logo" width={100} height={200} className="w-full h-full object-contain" />
+                    </div>
+                  </>
               )}
             </motion.div>
 
