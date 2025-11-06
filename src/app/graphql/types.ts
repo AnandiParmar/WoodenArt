@@ -11,7 +11,7 @@ export interface ProductInput {
   sku?: string;
   stock?: number;
   featureImage?: string | null;
-  images?: Prisma.InputJsonValue;
+  images?: Prisma.JsonValue;
   material?: string;
   color?: string;
   specialFeature?: string;
@@ -29,7 +29,7 @@ export interface ProductUpdateInput {
   sku?: string;
   stock?: number;
   featureImage?: string | null;
-  images?: Prisma.InputJsonValue;
+  images?: Prisma.JsonValue;
   material?: string;
   color?: string;
   specialFeature?: string;
