@@ -14,23 +14,29 @@ export async function GET(req: NextRequest) {
 
     await connectToDatabase();
     const cartItems = await CartItem.find({ userId: user.id }).lean();
-    const productIds = cartItems.map(ci => ci.productId);
+    const productIds = cartItems.map(ci => String(ci.productId));
     const products = await Product.find({ _id: { $in: productIds } }).lean();
-    // Create map using string IDs (MongoDB ObjectIds)
+    // Create map using string IDs (MongoDB ObjectIds) - normalize all IDs to strings
     const idToProduct = new Map(products.map((p: any) => [String(p._id), p]));
-    const items = cartItems.map((ci) => {
-      const productIdStr = String(ci.productId);
-      const p = idToProduct.get(productIdStr);
-      return {
-        productId: ci.productId, // Keep as string (MongoDB ObjectId)
-        productName: p?.name ?? 'Unknown',
-        productImage: p?.featureImage ?? undefined,
-        price: p ? Number(p.price) : 0,
-        discount: p?.discount ? Number(p.discount) : undefined,
-        quantity: ci.quantity,
-        stock: p?.stock ?? 0,
-      };
-    });
+    const items = cartItems
+      .map((ci) => {
+        const productIdStr = String(ci.productId);
+        const p = idToProduct.get(productIdStr);
+        // Only include items where product exists
+        if (!p) {
+          return null;
+        }
+        return {
+          productId: ci.productId, // Keep as string (MongoDB ObjectId)
+          productName: p.name,
+          productImage: p.featureImage ?? undefined,
+          price: Number(p.price),
+          discount: p.discount ? Number(p.discount) : undefined,
+          quantity: ci.quantity,
+          stock: p.stock ?? 0,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
 
     return NextResponse.json({ items });
   } catch (error) {

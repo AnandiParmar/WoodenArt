@@ -14,10 +14,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'react-toastify';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import Cookies from 'js-cookie';
+import socket from '@/Sokcet';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const dispatch = useAppDispatch();
   const cartItems = useAppSelector((state) => state.cart.items);
   const [loading, setLoading] = useState(false);
@@ -32,12 +34,21 @@ export default function CheckoutPage() {
   });
 
   useEffect(() => {
-    if (!user) {
+    // Wait for auth to finish loading before checking user status
+    if (authLoading) {
+      return;
+    }
+
+    // Check if user is authenticated - check both from context and cookies/localStorage as fallback
+    const isAuthenticated = Cookies.get('isAuthenticated') === 'true' || localStorage.getItem('isAuthenticated') === 'true';
+    const isUserAuthenticated = user || isAuthenticated;
+
+    if (!isUserAuthenticated) {
       router.push('/login');
       return;
     }
     fetchCart();
-  }, [user]);
+  }, [user, authLoading, router]);
 
   const fetchCart = async () => {
     try {
@@ -76,7 +87,10 @@ export default function CheckoutPage() {
         dispatch(addOrder(data.order));
         dispatch(clearCart());
         toast.success('Order placed successfully!');
-        router.push(`/orders?orderId=${data.order.id}`);
+        socket.emit('orderPlaced', data.order);
+        setTimeout(() => {
+          router.push(`/orders?orderId=${data.order.id}`);
+        }, 1000);
       } else {
         const error = await res.json();
         toast.error(error.error || 'Failed to place order');
@@ -89,15 +103,30 @@ export default function CheckoutPage() {
   };
 
   const calculateTotal = () => {
-    return cartItems.reduce((total, item) => {
-      const price = item.price;
-      const discount = item.discount || 0;
-      const finalPrice = discount > 0 ? price - (price * discount / 100) : price;
-      return total + finalPrice * item.quantity;
-    }, 0);
+    return cartItems
+      .filter((item) => item.productName && item.productName !== 'Unknown' && item.price > 0)
+      .reduce((total, item) => {
+        const price = item.price;
+        const discount = item.discount || 0;
+        const finalPrice = discount > 0 ? price - (price * discount / 100) : price;
+        return total + finalPrice * item.quantity;
+      }, 0);
   };
 
-  if (!user) return null;
+  // Show loading while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <span className="loader"></span>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (redirect is happening)
+  const isAuthenticated = Cookies.get('isAuthenticated') === 'true' || localStorage.getItem('isAuthenticated') === 'true';
+  if (!user && !isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-gray-100">
@@ -207,17 +236,19 @@ export default function CheckoutPage() {
                 <Card className="p-6 sticky top-32">
                   <h2 className="text-2xl font-bold mb-4">Order Summary</h2>
                   <div className="space-y-2 mb-6">
-                    {cartItems.map((item) => {
-                      const finalPrice = item.discount
-                        ? item.price - (item.price * item.discount / 100)
-                        : item.price;
-                      return (
-                        <div key={item.productId} className="flex justify-between text-sm">
-                          <span>{item.productName} x {item.quantity}</span>
-                          <span>₹{(finalPrice * item.quantity).toFixed(2)}</span>
-                        </div>
-                      );
-                    })}
+                    {cartItems
+                      .filter((item) => item.productName && item.productName !== 'Unknown' && item.price > 0)
+                      .map((item) => {
+                        const finalPrice = item.discount
+                          ? item.price - (item.price * item.discount / 100)
+                          : item.price;
+                        return (
+                          <div key={item.productId} className="flex justify-between text-sm">
+                            <span>{item.productName} x {item.quantity}</span>
+                            <span>₹{(finalPrice * item.quantity).toFixed(2)}</span>
+                          </div>
+                        );
+                      })}
                     <div className="border-t pt-2 mt-2">
                       <div className="flex justify-between text-xl font-bold">
                         <span>Total</span>

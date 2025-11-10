@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { UserPayload } from '@/lib/auth';
 import { useDispatch, useSelector } from 'react-redux';
 import { setUser as setUserAction, clearUser as clearUserAction } from '@/redux/features/user/userSlice';
@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserPayload | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const dispatch = useDispatch();
   const [hasChecked, setHasChecked] = useState(false);
   const persistedUser = useSelector((s: RootState) => s.user);
@@ -119,6 +119,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const clearAuthStorage = useCallback(() => {
+    try {
+      Cookies.remove('isAuthenticated', { path: '/' });
+      Cookies.remove('role', { path: '/' });
+      Cookies.remove('userId', { path: '/' });
+      Cookies.remove('auth-token', { path: '/' });
+      Cookies.remove('refresh-token', { path: '/' });
+      Cookies.remove('authorization', { path: '/' });
+    } catch (error) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Failed to clear auth cookies:', error);
+      }
+    }
+
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('role');
+      localStorage.removeItem('Authentication');
+    } catch (error) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Failed to clear auth storage:', error);
+      }
+    }
+
+    setUser(null);
+    dispatch(clearUserAction());
+  }, [dispatch]);
+
   const logout = async () => {
     try {
       await fetch('/api/graphql', {
@@ -137,18 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Clear cookies
-      Cookies.remove('isAuthenticated', { path: '/' });
-      Cookies.remove('role', { path: '/' });
-      
-      // Clear localStorage
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('isAuthenticated');
-      localStorage.removeItem('role');
-      
-      setUser(null);
-      dispatch(clearUserAction());
+      clearAuthStorage();
     }
   };
 
@@ -156,6 +175,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Refresh is no longer needed since we're not using /api/auth/me
     // This function is kept for API compatibility
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const clearAllLocalStorage = () => {
+      try {
+        // Clear all localStorage data
+        localStorage.clear();
+      } catch (error) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Failed to clear localStorage:', error);
+        }
+      }
+
+      // Also clear auth storage (cookies)
+      clearAuthStorage();
+    };
+
+    // Set a flag in sessionStorage when page is about to unload
+    // sessionStorage persists across page refreshes but is cleared on tab close
+    const handleBeforeUnload = () => {
+      try {
+        sessionStorage.setItem('isRefreshing', 'true');
+      } catch (error) {
+        // Ignore errors
+      }
+    };
+
+    const handlePageHide = (event: PageTransitionEvent) => {
+      // If event.persisted is true, it's navigation (back/forward), not a close
+      if (event.persisted) {
+        return;
+      }
+
+      // Check if this is a refresh by looking at sessionStorage
+      // If isRefreshing flag exists, it means the page is being refreshed
+      // sessionStorage persists across refreshes but is cleared on tab close
+      try {
+        const isRefreshing = sessionStorage.getItem('isRefreshing');
+        if (isRefreshing === 'true') {
+          // It's a refresh, don't clear localStorage
+          // The flag will be removed on next page load
+          return;
+        }
+      } catch (error) {
+        // If we can't access sessionStorage, it might be because tab is closing
+        // In this case, we'll clear localStorage to be safe
+      }
+
+      // Tab is being closed (not a refresh), clear localStorage
+      clearAllLocalStorage();
+    };
+
+    // Check on page load if this was a refresh
+    // If isRefreshing exists, it means the page was refreshed, so keep localStorage
+    try {
+      const isRefreshing = sessionStorage.getItem('isRefreshing');
+      if (isRefreshing === 'true') {
+        // It was a refresh, remove the flag for next time
+        sessionStorage.removeItem('isRefreshing');
+      }
+    } catch (error) {
+      // Ignore errors
+    }
+
+    // beforeunload fires before pagehide, so we set the flag here
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    // pagehide is the most reliable event for detecting tab close
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [clearAuthStorage]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout, refresh, isAdmin }}>

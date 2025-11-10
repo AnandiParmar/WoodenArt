@@ -75,7 +75,7 @@ export default function Navbar({ showLogo }: NavbarProps) {
             : " backdrop-blur-md shadow-sm bg-white/10"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-8xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}

@@ -11,6 +11,7 @@ import Navbar from "@/components/Navbar";
 import { usePathname } from "next/navigation";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import socket  from "@/Sokcet";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,11 @@ export default function RootLayout({
 
 
   useEffect(() => {
+
+    socket.on('connect', () => {
+      console.log('Connected to Socket.IO server=============================');
+     
+    });
     const hasVisited = localStorage.getItem("hasVisitedBefore");
     if (hasVisited) {
       setShowLoading(false);

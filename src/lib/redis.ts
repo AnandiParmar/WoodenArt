@@ -23,5 +23,20 @@ export async function cacheSetJSON(key: string, value: unknown, ttlSec = 60): Pr
   await r.set(key, JSON.stringify(value), 'EX', ttlSec);
 }
 
+export async function cacheDelete(key: string): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  await r.del(key);
+}
+
+export async function cacheDeletePattern(pattern: string): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  const keys = await r.keys(pattern);
+  if (keys.length > 0) {
+    await r.del(...keys);
+  }
+}
+
 
 

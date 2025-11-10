@@ -4,7 +4,6 @@ import { authenticateRequest } from '@/lib/auth';
 import { connectToDatabase } from '@/lib/mongodb';
 import { Order } from '@/models/Order';
 import { CartItem } from '@/models/CartItem';
-import { getIO } from '@/lib/socketServer';
 
 // GET - Get user's orders
 export async function GET(req: NextRequest) {
@@ -22,9 +21,10 @@ export async function GET(req: NextRequest) {
     await connectToDatabase();
     const orders = await Order.find(where).sort({ createdAt: -1 }).lean();
     // Enrich item names/images from Mongo products
-    const allProductIds = Array.from(new Set(orders.flatMap(o => o.items.map(i => i.productId))));
-    const products = await Product.find({ _id: { $in: allProductIds.map(String) } }).select({ _id: 1, name: 1, featureImage: 1 }).lean();
-    const idToProduct = new Map(products.map((p: any) => [p._id, p]));
+    const allProductIds = Array.from(new Set(orders.flatMap(o => o.items.map(i => String(i.productId)))));
+    const products = await Product.find({ _id: { $in: allProductIds } }).select({ _id: 1, name: 1, featureImage: 1 }).lean();
+    // Create map using string IDs for consistent matching
+    const idToProduct = new Map(products.map((p: any) => [String(p._id), p]));
     const formattedOrders = orders.map((order) => ({
       id: String(order._id),
       orderNumber: order.orderNumber,
@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
       paymentMethod: order.paymentMethod || undefined,
       paymentStatus: order.paymentStatus,
       items: order.items.map((item, idx) => {
-        const p = idToProduct.get(item.productId);
+        const productIdStr = String(item.productId);
+        const p = idToProduct.get(productIdStr);
         return {
           id: `${order._id}-${idx}`,
           productId: item.productId,
@@ -92,13 +93,15 @@ export async function POST(req: NextRequest) {
     // Validate stock and calculate total
     let totalAmount = 0;
     // Fetch products from Mongo for pricing/stock
-    const productIds = cartItems.map(ci => ci.productId);
-    const products = await Product.find({ _id: { $in: productIds.map(String) } }).lean();
-    const idToProduct = new Map(products.map((p: any) => [p._id, p]));
+    const productIds = cartItems.map(ci => String(ci.productId));
+    const products = await Product.find({ _id: { $in: productIds } }).lean();
+    // Create map using string IDs for consistent matching
+    const idToProduct = new Map(products.map((p: any) => [String(p._id), p]));
     for (const item of cartItems) {
-      const product = idToProduct.get(item.productId);
+      const productIdStr = String(item.productId);
+      const product = idToProduct.get(productIdStr);
       if (!product) {
-        return NextResponse.json({ error: `Product ${item.productId} not found` }, { status: 400 });
+        return NextResponse.json({ error: `Product ${productIdStr} not found` }, { status: 400 });
       }
       if (product.stock < item.quantity) {
         return NextResponse.json(
@@ -118,7 +121,8 @@ export async function POST(req: NextRequest) {
 
     // Prepare order items data
     const orderItemsData = cartItems.map(item => {
-      const p = idToProduct.get(item.productId)!;
+      const productIdStr = String(item.productId);
+      const p = idToProduct.get(productIdStr)!;
       const price = Number(p.price);
       const discount = p.discount ? Number(p.discount) : 0;
       const finalPrice = discount > 0 ? price - (price * discount / 100) : price;
@@ -140,30 +144,25 @@ export async function POST(req: NextRequest) {
       items: orderItemsData,
     });
 
-    // Update stock in Mongo
+    // Update stock in Mongo and invalidate caches
+    const { cacheDeletePattern } = await import('@/lib/redis');
     for (const item of cartItems) {
-      const current = idToProduct.get(item.productId);
+      const productIdStr = String(item.productId);
+      const current = idToProduct.get(productIdStr);
       if (current) {
         await Product.findByIdAndUpdate(String(current._id), { $inc: { stock: -item.quantity } });
+        // Invalidate product caches for this product
+        await cacheDeletePattern(`product:${productIdStr}`);
+        await cacheDeletePattern(`api:product:${productIdStr}`);
+        await cacheDeletePattern('products:*');
+        await cacheDeletePattern('api:products:*');
       }
     }
 
     // Clear Mongo cart
     await CartItem.deleteMany({ userId: user.id });
 
-    // Emit order created to user room
-    try {
-      const io = getIO();
-      io?.to(`user:${user.id}`).emit('order_created', {
-        id: String(created._id),
-        orderNumber: created.orderNumber,
-        status: created.status,
-        totalAmount: Number(created.totalAmount),
-        createdAt: (created.createdAt as Date).toISOString(),
-      });
-    } catch {}
-
-    return NextResponse.json({ order: { id: String(created._id), orderNumber: created.orderNumber, status: created.status, totalAmount: Number(created.totalAmount) } }, { status: 201 });
+    return NextResponse.json({ order: { id: String(created._id), orderNumber: created.orderNumber, status: created.status, totalAmount: Number(created.totalAmount), createdAt: created.createdAt.toISOString() } }, { status: 201 });
   } catch (error) {
     console.error('Order creation error:', error);
     return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
@@ -186,13 +185,6 @@ export async function PATCH(req: NextRequest) {
 
     await connectToDatabase();
     const updated = await Order.findByIdAndUpdate(orderId, { $set: { status } }, { new: true });
-
-    // Emit status update to all and user room
-    try {
-      const io = getIO();
-      io?.emit('order_status_updated', { id: String(updated!._id), status: updated!.status, userId: updated!.userId });
-      io?.to(`user:${updated!.userId}`).emit('order_status_updated', { id: String(updated!._id), status: updated!.status });
-    } catch {}
 
     return NextResponse.json({
       order: {

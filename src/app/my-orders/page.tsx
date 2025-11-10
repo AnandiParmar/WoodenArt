@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSocket } from '@/lib/socketClient';
+import { useAppSelector } from '@/redux/store';
+import Cookies from 'js-cookie';
 
 interface OrderItemDto {
   id:  string;
@@ -28,49 +30,103 @@ interface OrderDto {
 export default function MyOrdersPage() {
   const [orders, setOrders] = useState<OrderDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const [redirecting, setRedirecting] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const persistedUser = useAppSelector((s) => s.user);
+  const router = useRouter();
 
+  // Check authentication status from multiple sources
+  const isAuthenticated = () => {
+    // Check user from AuthContext
+    if (user && user.role) return true;
+    
+    // Check persisted user from Redux
+    if (persistedUser && persistedUser.role) return true;
+    
+    // Check cookies
+    if (typeof window !== 'undefined') {
+      const cookieAuth = Cookies.get('isAuthenticated') === 'true';
+      const storageAuth = localStorage.getItem('isAuthenticated') === 'true';
+      if (cookieAuth || storageAuth) return true;
+    }
+    
+    return false;
+  };
+
+  // Fetch orders - only redirect if API call fails with Unauthorized
   useEffect(() => {
+    // Wait for auth to finish loading before checking
+    if (authLoading) {
+      return;
+    }
+
     const fetchOrders = async () => {
+      // Don't redirect immediately - try to fetch first
+      // The API will tell us if we're really unauthorized
       try {
         const res = await fetch('/api/graphql', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // Include cookies in the request
           body: JSON.stringify({ query: `query{ myOrders{ id orderNumber status totalAmount createdAt items{ id productId productName productImage quantity price } } }` }),
         });
         const json = await res.json();
-        if (json.data?.myOrders) setOrders(json.data.myOrders);
+        
+        if (json.errors) {
+          // If there's an auth error, redirect to login
+          if (json.errors.some((e: any) => e.message?.includes('Unauthorized'))) {
+            setRedirecting(true);
+            router.push(`/login?redirect=${encodeURIComponent('/my-orders')}`);
+            return;
+          }
+        }
+        
+        if (json.data?.myOrders) {
+          setOrders(json.data.myOrders);
+        }
+      } catch (error) {
+        console.error('Failed to fetch orders:', error);
+        // Only redirect on network errors if we're definitely not authenticated
+        if (!isAuthenticated()) {
+          setRedirecting(true);
+          router.push(`/login?redirect=${encodeURIComponent('/my-orders')}`);
+          return;
+        }
       } finally {
         setLoading(false);
       }
     };
+    
     fetchOrders();
-  }, []);
+  }, [router, authLoading]);
 
-  useEffect(() => {
-    if (!user) return;
-    const socket = getSocket();
-    socket.emit('join', `user:${user.id}`);
-    const onStatus = (payload: { id: string; status: string }) => {
-      setOrders((prev) => prev.map((o) => (String(o.id) === String(payload.id) ? { ...o, status: payload.status } : o)));
-    };
-    const onCreated = (payload: any) => {
-      setOrders((prev) => [{
-        id: payload.id,
-        orderNumber: payload.orderNumber,
-        status: payload.status,
-        totalAmount: payload.totalAmount,
-        items: [],
-        createdAt: payload.createdAt,
-      }, ...prev]);
-    };
-    socket.on('order_status_updated', onStatus);
-    socket.on('order_created', onCreated);
-    return () => {
-      socket.off('order_status_updated', onStatus);
-      socket.off('order_created', onCreated);
-    };
-  }, [user]);
+  // Show loading while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-gray-100">
+        <Navbar showLogo={true} />
+        <div className="pt-32 pb-20 px-6">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-gray-500">Loading...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render content if redirecting
+  if (redirecting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-gray-100">
+        <Navbar showLogo={true} />
+        <div className="pt-32 pb-20 px-6">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-gray-500">Redirecting to login...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-gray-100">
@@ -93,7 +149,15 @@ export default function MyOrdersPage() {
                       <div className="font-semibold">{order.orderNumber}</div>
                     </div>
                     <div className="text-sm">
-                      <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                      <span className={`px-3 py-1 rounded-full border transition-all duration-300 ${
+                        order.status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        order.status === 'CONFIRMED' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        order.status === 'PROCESSING' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                        order.status === 'SHIPPED' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                        order.status === 'DELIVERED' ? 'bg-green-50 text-green-700 border-green-200' :
+                        order.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border-red-200' :
+                        'bg-gray-50 text-gray-700 border-gray-200'
+                      }`}>
                         {order.status}
                       </span>
                     </div>

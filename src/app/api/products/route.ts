@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { Product } from '@/models/Product';
 import { Category } from '@/models/Category';
+import { cacheGetJSON, cacheSetJSON } from '@/lib/redis';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const first = parseInt(searchParams.get('first') || '100');
+
+    // Check cache first
+    const cacheKey = `api:products:${first}`;
+    const cached = await cacheGetJSON<{ items: any[] }>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
 
     await connectToDatabase();
     const products = await Product.find({}).sort({ createdAt: -1 }).limit(first).lean();
@@ -40,7 +48,12 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ items: rows });
+    const result = { items: rows };
+    
+    // Cache for 5 minutes (300 seconds)
+    await cacheSetJSON(cacheKey, result, 300);
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Products list error:', error);
     return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });

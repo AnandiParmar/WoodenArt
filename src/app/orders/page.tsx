@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppDispatch, useAppSelector } from '@/redux/store';
@@ -11,22 +11,39 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'react-toastify';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import socket from '@/Sokcet';
+import Cookies from 'js-cookie';
 
 export default function OrdersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const dispatch = useAppDispatch();
-  const orders = useAppSelector((state) => state.orders.orders);
+  const orders = useAppSelector((state) => state.orders?.orders) || [];
   const [loading, setLoading] = useState(true);
+  const ordersRef = useRef(orders);
+  
+  // Keep ref in sync with orders
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
 
   useEffect(() => {
-    if (!user) {
+    // Wait for auth to finish loading before checking user status
+    if (authLoading) {
+      return;
+    }
+
+    // Check if user is authenticated - check both from context and cookies/localStorage as fallback
+    const isAuthenticated = Cookies.get('isAuthenticated') === 'true' || localStorage.getItem('isAuthenticated') === 'true';
+    const isUserAuthenticated = user || isAuthenticated;
+
+    if (!isUserAuthenticated) {
       router.push('/login');
       return;
     }
     fetchOrders();
-  }, [user]);
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     const orderId = searchParams.get('orderId');
@@ -37,9 +54,25 @@ export default function OrdersPage() {
         if (element) {
           element.scrollIntoView({ behavior: 'smooth' });
         }
-      }, 500);
+      }, 50);
     }
-  }, [searchParams]);
+    
+    const handleOrderStatusUpdate = (data: any) => {
+      console.log('Order status updated:', data);
+      // Use ref to get latest orders state
+      const currentOrders = ordersRef.current || [];
+      const updatedOrders = currentOrders.map((order) => 
+        order.id === data.orderId ? { ...order, status: data.status } : order
+      );
+      dispatch(setOrders(updatedOrders));
+    };
+    
+    socket.on('orderStatusUpdated', handleOrderStatusUpdate);
+    
+    return () => {
+      socket.off('orderStatusUpdated', handleOrderStatusUpdate);
+    };
+  }, [searchParams, dispatch]);
 
   const fetchOrders = async () => {
     try {
@@ -85,11 +118,25 @@ export default function OrdersPage() {
     }
   };
 
-  if (!user) return null;
+  // Show loading while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <span className="loader"></span>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (redirect is happening)
+  const isAuthenticated = Cookies.get('isAuthenticated') === 'true' || localStorage.getItem('isAuthenticated') === 'true';
+  if (!user && !isAuthenticated) {
+    return null;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <span className="loader"></span>
       </div>
     );
   }
@@ -102,7 +149,7 @@ export default function OrdersPage() {
         <div className="max-w-7xl mx-auto">
           <h1 className="text-4xl font-bold text-gray-900 mb-8">My Orders</h1>
 
-          {orders.length === 0 ? (
+          {!orders || orders.length === 0 ? (
             <Card className="p-12 text-center">
               <h2 className="text-2xl font-semibold mb-2">No orders yet</h2>
               <p className="text-gray-600 mb-6">Start shopping to see your orders here</p>
@@ -139,7 +186,7 @@ export default function OrdersPage() {
                       <div>
                         <h3 className="font-semibold mb-2">Items:</h3>
                         <div className="space-y-2">
-                          {order.items.map((item) => (
+                          {(order.items || []).map((item) => (
                             <div key={item.id} className="flex justify-between text-sm">
                               <span>{item.productName} x {item.quantity}</span>
                               <span>₹{(item.price * item.quantity).toFixed(2)}</span>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { Product } from '@/models/Product';
 import { Category } from '@/models/Category';
+import { cacheGetJSON, cacheSetJSON } from '@/lib/redis';
 
 export async function GET(
   req: NextRequest,
@@ -9,6 +10,14 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    
+    // Check cache first
+    const cacheKey = `api:product:${id}`;
+    const cached = await cacheGetJSON<{ product: any }>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     await connectToDatabase();
 
     const product = await Product.findById(id).lean();
@@ -24,7 +33,7 @@ export async function GET(
       if (cat) category = { id: String(cat._id), name: cat.name };
     }
 
-    return NextResponse.json({
+    const result = {
       product: {
         id: String(product._id),
         name: product.name,
@@ -42,7 +51,12 @@ export async function GET(
         totalRatings: product.totalRatings ?? 0,
         category,
       },
-    });
+    };
+
+    // Cache for 5 minutes (300 seconds)
+    await cacheSetJSON(cacheKey, result, 300);
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Product fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch product' }, { status: 500 });

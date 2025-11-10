@@ -53,7 +53,7 @@ export default function UsersPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+        <span className="loader"></span>
       </div>
     );
   }

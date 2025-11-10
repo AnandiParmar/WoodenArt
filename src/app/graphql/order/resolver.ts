@@ -4,7 +4,6 @@ import { CartItem } from '@/models/CartItem';
 import { Product } from '@/models/Product';
 import { authenticateRequest } from '@/lib/auth';
 import { NextRequest } from 'next/server';
-import { getIO } from '@/lib/socketServer';
 
 export const orderResolvers = {
   Query: {
@@ -86,9 +85,6 @@ export const orderResolvers = {
         if (p) await Product.findByIdAndUpdate(String(p._id), { $inc: { stock: -c.quantity } });
       }
       await CartItem.deleteMany({ userId: user.id });
-      try {
-        getIO()?.to(`user:${user.id}`).emit('order_created', { id: String(created._id), orderNumber: created.orderNumber, status: created.status, totalAmount: Number(created.totalAmount), createdAt: (created.createdAt as Date).toISOString() });
-      } catch {}
       return { id: String(created._id), orderNumber: created.orderNumber, status: created.status, totalAmount: Number(created.totalAmount) };
     },
     updateOrderStatus: async (_: unknown, { orderId, status }: { orderId: string; status: string }, ctx: { req: NextRequest }) => {
@@ -96,10 +92,6 @@ export const orderResolvers = {
       if (!user || user.role !== 'ADMIN') throw new Error('Unauthorized');
       await connectToDatabase();
       const updated = await Order.findByIdAndUpdate(orderId, { $set: { status } }, { new: true }).lean();
-      try {
-        getIO()?.emit('order_status_updated', { id: String(updated!._id), status: updated!.status, userId: updated!.userId });
-        getIO()?.to(`user:${updated!.userId}`).emit('order_status_updated', { id: String(updated!._id), status: updated!.status });
-      } catch {}
       return { id: String(updated!._id), status: updated!.status };
     },
   },

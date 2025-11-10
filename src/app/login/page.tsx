@@ -14,17 +14,32 @@ export default function LoginPage() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user: authUser } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const redirect = params.get('redirect') || '/';
-  const user = useAppSelector((s) => s.user);
+  const persistedUser = useAppSelector((s) => s.user);
+  const [authChecked, setAuthChecked] = useState(false);
 
+  // Wait for auth to hydrate before checking
   useEffect(() => {
-    if (user && user.role) {
+    const timer = setTimeout(() => {
+      setAuthChecked(true);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!authChecked) return;
+    
+    // Check if user is authenticated from multiple sources
+    const authenticated = (authUser && authUser.role) || (persistedUser && persistedUser.role);
+    
+    if (authenticated) {
       router.replace(redirect);
     }
-  }, [user, router, redirect]);
+  }, [authUser, persistedUser, authChecked, router, redirect]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({

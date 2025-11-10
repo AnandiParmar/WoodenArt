@@ -13,21 +13,31 @@ import Link from 'next/link';
 import { toast } from 'react-toastify';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import Cookies from 'js-cookie';
 
 export default function CartPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const dispatch = useAppDispatch();
   const cartItems = useAppSelector((state) => state.cart.items);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) {
+    // Wait for auth to finish loading before checking user status
+    if (authLoading) {
+      return;
+    }
+
+    // Check if user is authenticated - check both from context and cookies/localStorage as fallback
+    const isAuthenticated = Cookies.get('isAuthenticated') === 'true' || localStorage.getItem('isAuthenticated') === 'true';
+    const isUserAuthenticated = user || isAuthenticated;
+
+    if (!isUserAuthenticated) {
       router.push('/login');
       return;
     }
     fetchCart();
-  }, [user]);
+  }, [user, authLoading, router]);
 
   const fetchCart = async () => {
     try {
@@ -153,11 +163,25 @@ export default function CartPage() {
     }, 0);
   };
 
-  if (!user) return null;
+  // Show loading while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <span className="loader"></span>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (redirect is happening)
+  const isAuthenticated = Cookies.get('isAuthenticated') === 'true' || localStorage.getItem('isAuthenticated') === 'true';
+  if (!user && !isAuthenticated) {
+    return null;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <span className="loader"></span>
       </div>
     );
   }

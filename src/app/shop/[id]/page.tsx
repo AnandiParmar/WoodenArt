@@ -161,7 +161,7 @@ export default function ProductDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <span className="loader"></span>
       </div>
     );
   }

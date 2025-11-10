@@ -29,10 +29,10 @@ async function createAdmin() {
       },
     });
 
-    console.log('Admin user created successfully:');
-    console.log('Email:', admin.email);
-    console.log('Password: admin123');
-    console.log('Role:', admin.role);
+    // console.log('Admin user created successfully:');
+    // console.log('Email:', admin.email);
+    // console.log('Password: admin123');
+    // console.log('Role:', admin.role);
   } catch (error) {
     console.error('Error creating admin user:', error);
   } finally {

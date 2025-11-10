@@ -1,7 +1,7 @@
 import { connectToDatabase } from '@/lib/mongodb';
 import { Product as ProductModel } from '@/models/Product';
 import { Category as CategoryModel } from '@/models/Category';
-import { cacheGetJSON, cacheSetJSON } from '@/lib/redis';
+import { cacheGetJSON, cacheSetJSON, cacheDeletePattern } from '@/lib/redis';
 import { 
   ProductInput, 
   ProductUpdateInput, 
@@ -13,14 +13,47 @@ import {
 
 type Direction = 'asc' | 'desc';
 
+// Helper function to invalidate product caches
+async function invalidateProductCaches(productId?: string, categoryId?: string) {
+  // Invalidate all product list caches (GraphQL)
+  await cacheDeletePattern('products:*');
+  
+  // Invalidate specific product cache if ID provided (GraphQL)
+  if (productId) {
+    await cacheDeletePattern(`product:${productId}`);
+  }
+  
+  // Invalidate category-specific caches if category ID provided (GraphQL)
+  if (categoryId) {
+    await cacheDeletePattern(`products:category:${categoryId}`);
+  }
+  
+  // Invalidate all search caches (since new/updated products might match)
+  await cacheDeletePattern('products:search:*');
+  
+  // Invalidate API route caches
+  await cacheDeletePattern('api:products:*');
+  if (productId) {
+    await cacheDeletePattern(`api:product:${productId}`);
+  }
+}
+
 export const productResolvers = {
   Query: {
     product: async (_: unknown, { id }: { id: string }): Promise<ProductWithRelations | null> => {
       await connectToDatabase();
+      
+      // Check cache first
+      const cacheKey = `product:${id}`;
+      const cached = await cacheGetJSON<ProductWithRelations>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const p = await ProductModel.findById(id).lean();
       if (!p) return null;
       const category = p.categoryId ? await CategoryModel.findById(p.categoryId).select({ _id: 1, name: 1 }).lean() : null;
-      return {
+      const result = {
         id: String(p._id),
         name: p.name,
         description: p.description || null,
@@ -36,6 +69,10 @@ export const productResolvers = {
         category: category ? { id: String(category._id), name: category.name } : null,
         ratings: [],
       } as unknown as ProductWithRelations;
+
+      // Cache for 5 minutes (300 seconds)
+      await cacheSetJSON(cacheKey, result, 300);
+      return result;
     },
 
     products: async (
@@ -156,16 +193,25 @@ export const productResolvers = {
       };
 
       if (!cached) {
-        await cacheSetJSON(cacheKey, { edges, totalCount }, 60);
+        // Cache for 5 minutes (300 seconds)
+        await cacheSetJSON(cacheKey, { edges, totalCount }, 300);
       }
       return result;
     },
 
     productsByCategory: async (_: unknown, { categoryId }: { categoryId: string }): Promise<ProductWithRelations[]> => {
       await connectToDatabase();
+      
+      // Check cache first
+      const cacheKey = `products:category:${categoryId}`;
+      const cached = await cacheGetJSON<ProductWithRelations[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const products = await ProductModel.find({ categoryId }).lean();
       const category = await CategoryModel.findById(categoryId).select({ _id: 1, name: 1 }).lean();
-      return products.map((p: any) => ({
+      const result = products.map((p: any) => ({
         id: String(p._id),
         name: p.name,
         description: p.description || null,
@@ -180,10 +226,23 @@ export const productResolvers = {
         category: category ? { id: String(category._id), name: category.name } : null,
         ratings: [],
       })) as unknown as ProductWithRelations[];
+
+      // Cache for 5 minutes (300 seconds)
+      await cacheSetJSON(cacheKey, result, 300);
+      return result;
     },
 
     searchProducts: async (_: unknown, { query }: { query: string }): Promise<ProductWithRelations[]> => {
       await connectToDatabase();
+      
+      // Check cache first (use normalized query for cache key)
+      const normalizedQuery = query.toLowerCase().trim();
+      const cacheKey = `products:search:${Buffer.from(normalizedQuery).toString('base64')}`;
+      const cached = await cacheGetJSON<ProductWithRelations[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const results = await ProductModel.find({
         $or: [
           { name: { $regex: query, $options: 'i' } },
@@ -193,7 +252,7 @@ export const productResolvers = {
           { style: { $regex: query, $options: 'i' } },
         ],
       }).lean();
-      return results.map((p: any) => ({
+      const result = results.map((p: any) => ({
         id: String(p._id),
         name: p.name,
         description: p.description || null,
@@ -208,6 +267,10 @@ export const productResolvers = {
         category: null,
         ratings: [],
       })) as unknown as ProductWithRelations[];
+
+      // Cache search results for 2 minutes (120 seconds) - shorter TTL for search
+      await cacheSetJSON(cacheKey, result, 120);
+      return result;
     },
   },
 
@@ -217,6 +280,10 @@ export const productResolvers = {
       const { categoryId, ...productData } = input as any;
       const created = await ProductModel.create({ ...productData, categoryId });
       const category = categoryId ? await CategoryModel.findById(categoryId).select({ _id: 1, name: 1 }).lean() : null;
+      
+      // Invalidate caches
+      await invalidateProductCaches(String(created._id), categoryId);
+      
       return {
         id: String(created._id),
         name: created.name,
@@ -279,9 +346,22 @@ export const productResolvers = {
         data['categoryId'] = (input as any).categoryId;
       }
 
+      // Get old product before updating to know old categoryId for cache invalidation
+      const oldProduct = await ProductModel.findById(id).lean();
+      if (!oldProduct) throw new Error('Product not found');
+      const oldCategoryId = oldProduct.categoryId ? String(oldProduct.categoryId) : undefined;
+      
       const updated = await ProductModel.findByIdAndUpdate(id, { $set: data }, { new: true }).lean();
       if (!updated) throw new Error('Product not found');
       const category = updated.categoryId ? await CategoryModel.findById(updated.categoryId).select({ _id: 1, name: 1 }).lean() : null;
+      
+      // Invalidate caches - invalidate both old and new category caches if category changed
+      const newCategoryId = updated.categoryId ? String(updated.categoryId) : undefined;
+      await invalidateProductCaches(id, oldCategoryId);
+      if (oldCategoryId !== newCategoryId && newCategoryId) {
+        await invalidateProductCaches(id, newCategoryId);
+      }
+      
       return {
         id: String(updated._id),
         name: updated.name,
@@ -301,7 +381,16 @@ export const productResolvers = {
 
     deleteProduct: async (_: unknown, { id }: { id: string }): Promise<boolean> => {
       await connectToDatabase();
+      
+      // Get product before deletion to know category for cache invalidation
+      const product = await ProductModel.findById(id).lean();
+      const categoryId = product?.categoryId ? String(product.categoryId) : undefined;
+      
       await ProductModel.findByIdAndDelete(id);
+      
+      // Invalidate caches
+      await invalidateProductCaches(id, categoryId);
+      
       return true;
     },
 
@@ -311,6 +400,11 @@ export const productResolvers = {
       if (!product) throw new Error('Product not found');
       const updated = await ProductModel.findByIdAndUpdate(id, { $set: { isActive: !product.isActive } }, { new: true }).lean();
       const category = updated?.categoryId ? await CategoryModel.findById(updated.categoryId).select({ _id: 1, name: 1 }).lean() : null;
+      
+      // Invalidate caches
+      const categoryId = updated?.categoryId ? String(updated.categoryId) : undefined;
+      await invalidateProductCaches(id, categoryId);
+      
       return {
         id: String(updated!._id),
         name: updated!.name,
